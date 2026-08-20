@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.db
+.pytest_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Node / JS
+node_modules/
+.next/
+dist/
+
+# Misc build/runtime
+var/
+
+# Claude Code / AI tooling
+.claude/
+.claude-*
+CLAUDE.local.md
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dotfiles / local-only (catch-all; explicit allowlist below)
+.*
+!.gitignore
+!.gitattributes
+!.env.example
+!.github/
+!.github/**

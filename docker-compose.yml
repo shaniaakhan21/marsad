@@ -1,0 +1,61 @@
+# Runs the whole federation on one laptop: three independent institution
+# connectors plus one core. The separation is real — each connector is its own
+# container with its own storage, and only the boundary payload moves between them.
+services:
+  core:
+    build: { context: ., dockerfile: services/core/Dockerfile }
+    environment:
+      MARSAD_CORE_SIMILARITY_ENGINE: jaccard
+      MARSAD_CORE_SIMILARITY_THRESHOLD: "0.60"
+      MARSAD_CORE_K_ANONYMITY: "3"
+    ports: ["8000:8000"]
+
+  # NOTE: all three connectors share MARSAD_TOKEN_KEY because tokens must be
+  # comparable across institutions. In production this key is never distributed —
+  # it lives in an HSM under threshold custody and is used via an OPRF protocol.
+  connector-almaha:
+    build: { context: ., dockerfile: services/connector/Dockerfile }
+    environment:
+      MARSAD_INSTITUTION_NAME: "Al Maha Bank"
+      MARSAD_INSTITUTION_REF: "psd_almaha01"
+      MARSAD_SECTOR: BANK
+      MARSAD_SIZE_BAND: LARGE
+      MARSAD_CORE_URL: "http://core:8000"
+      MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
+      MARSAD_TOKENISER: hmac
+    ports: ["8101:8000"]
+    depends_on: [core]
+
+  connector-gulfsec:
+    build: { context: ., dockerfile: services/connector/Dockerfile }
+    environment:
+      MARSAD_INSTITUTION_NAME: "Gulf Securities"
+      MARSAD_INSTITUTION_REF: "psd_gulfsec02"
+      MARSAD_SECTOR: BROKER
+      MARSAD_SIZE_BAND: MID
+      MARSAD_CORE_URL: "http://core:8000"
+      MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
+      MARSAD_TOKENISER: hmac
+    ports: ["8102:8000"]
+    depends_on: [core]
+
+  connector-emcap:
+    build: { context: ., dockerfile: services/connector/Dockerfile }
+    environment:
+      MARSAD_INSTITUTION_NAME: "Emirates Capital"
+      MARSAD_INSTITUTION_REF: "psd_emcap03"
+      MARSAD_SECTOR: INVEST
+      MARSAD_SIZE_BAND: MID
+      MARSAD_CORE_URL: "http://core:8000"
+      MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
+      MARSAD_TOKENISER: hmac
+    ports: ["8103:8000"]
+    depends_on: [core]
+
+  web:
+    build: { context: ./apps/web }
+    environment:
+      NEXT_PUBLIC_CORE_URL: "http://localhost:8000"
+      NEXT_PUBLIC_CONNECTORS: "http://localhost:8101,http://localhost:8102,http://localhost:8103"
+    ports: ["3000:3000"]
+    depends_on: [core]
