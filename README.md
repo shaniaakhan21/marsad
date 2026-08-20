@@ -8,6 +8,23 @@ Institutions gain collective situational awareness — coordinated attacks spann
 several firms, concentration risk on shared providers — **without disclosing
 incident detail to a competitor**.
 
+**109 tests passing end to end** — 96 backend + 2 network + 11 Playwright e2e
+against the real UI. See [Test coverage](#test-coverage).
+
+---
+
+## Contents
+
+- [The one idea everything serves](#the-one-idea-everything-serves)
+- [Quick start](#quick-start)
+- [Layout](#layout)
+- [The three swap points](#the-three-swap-points)
+- [Test coverage](#test-coverage)
+- [Design decisions worth knowing before you change things](#design-decisions-worth-knowing-before-you-change-things)
+- [Roadmap](#roadmap)
+- [Government data this runs on](#government-data-this-runs-on)
+- [Honest scope](#honest-scope)
+
 ---
 
 ## The one idea everything serves
@@ -42,7 +59,7 @@ make run              # docker compose: 3 connectors + core + web
 make demo             # drive the full scenario through the real services
 ```
 
-Then open <http://localhost:3000> and press **Run scenario**.
+Then open <http://localhost:3000> and press **▶ Run the demo**.
 
 Without Docker:
 
@@ -103,7 +120,21 @@ evaluate alone. **Do not process real institutional data until this is done.**
 
 ---
 
-## What the tests prove
+## Test coverage
+
+Three separate suites, kept separate on purpose — a backend guarantee and
+"does the pitch demo actually render this" are different claims, and
+inflating one number by mixing them would hide which layer actually broke.
+
+| Suite | Command | Result | Proves |
+|---|---|---|---|
+| Backend | `make test` | **96 passed**, 2 deselected | The privacy and correlation guarantees, offline |
+| Network | `make test-network` | **2 passed** | The same fetchers, against a real UAE government portal |
+| End-to-end | `make test-e2e` | **11 passed** | Every claim the pitch makes is actually on screen |
+
+<sub>Total: **109 passed**. Last run: 2026-08-20, `main`.</sub>
+
+### What the backend tests prove
 
 `make test` is not coverage theatre — each test encodes a claim we make to a
 regulator or a bank's counsel.
@@ -124,26 +155,132 @@ regulator or a bank's counsel.
 - k-anonymity gates aggregate publication while still notifying the parties
 - concentration scoring ranks a non-substitutable shared provider highest, and
   discounts inferred dependency edges
+- ADGM (24h), DFSA (72h), CMA (48h) and CBUAE (24h) deadlines are exact
+  arithmetic from detection, not just in-scope — a missed deadline is legal
+  exposure, so every clock is asserted by value
 
-### Running the tests
+<details>
+<summary><b>Terminal output</b> — <code>make test</code></summary>
 
-Three separate suites, kept separate on purpose — a backend assertion and a
-"does the pitch demo actually render this" assertion are different claims:
+```text
+$ make test
+======================= test session starts =======================
+platform darwin -- Python 3.12.6, pytest-8.3.4
+collecting ... collected 98 items / 2 deselected / 96 selected
 
-- **`make test`** — backend unit tests (`tests/`), no network, no services
-  running. This is what CI should gate on.
-- **`make test-network`** — the tests marked `network`, excluded from `make
-  test` by default because they hit a real UAE government portal
-  (`data.ajman.ae`, `tdra.gov.ae`) and can fail on a machine with no internet.
-- **`make test-e2e`** — a Playwright smoke suite (`apps/web/e2e/`) that boots
-  core, all three connectors and the Next.js app as local processes on a port
-  range offset from `make run` (so both can be up at once), drives the actual
-  UI — clicking "Run the demo", "File the incident" — and asserts what's on
-  screen against what the pitch claims. No live network: the core's open-data
-  fetchers are routed through an unreachable proxy so a portal outage can
-  never make this suite flaky, and a fixed cache is seeded first so the three
-  "Live UAE government data" tiles resolve to CACHED deterministically. Runs
-  with `npx playwright test` inside `apps/web` if you'd rather skip `make`.
+tests/test_agents.py ..........................                 [ 27%]
+tests/test_boundary.py .............                             [ 40%]
+tests/test_fetchers.py ................                          [ 56%]
+tests/test_open_data.py .......................................  [100%]
+
+======================= 96 passed, 2 deselected in 0.74s =======================
+```
+
+</details>
+
+<details>
+<summary><b>Terminal output</b> — <code>make test-network</code></summary>
+
+```text
+$ make test-network
+collecting ... collected 98 items / 96 deselected / 2 selected
+
+tests/test_fetchers.py::test_ajman_catalogue_is_genuinely_reachable_live PASSED
+tests/test_fetchers.py::test_tdra_workbook_is_genuinely_parsed_live PASSED
+
+======================= 2 passed, 96 deselected in 2.09s =======================
+```
+
+</details>
+
+### What the end-to-end suite proves
+
+`apps/web` had zero tests before this suite. Playwright drives the **real
+UI** — clicking "▶ Run the demo", "▶ File the incident" — against the real
+backend (core + all 3 connectors, started as local processes) and checks the
+exact claims the pitch makes out loud:
+
+- all three firms render and pick up their incident count after the demo runs
+- the outbound payload panel shows only tokens — no narrative, no raw indicator
+  values, checked against every synthetic plaintext string in the demo data
+- a ◆ SAME ATTACKER and a ◆ SIMILAR ATTACK METHOD card both render
+- the k-anonymity gate says "not yet" at 3 participating institutions
+- filing the demo incident (which carries a hidden prompt injection) shows
+  ◆ TRICK DETECTED with its 4 named findings, and severity stays HIGH — not
+  downgraded
+- all 5 regulators render with the right deadlines (ADGM 24h, CBUAE 24h,
+  CMA 48h, DFSA 72h) and TDRA is flagged as needing a human decision
+- the receipt/proof hash is displayed
+- the three "Live UAE government data" tiles never render blank or an error
+- the riskiest-vendor card and the banks=YES / finance companies=MUST COMBINE
+  publishing-rule table are correct
+
+No live network in this suite: the core's open-data fetchers are routed
+through an unreachable proxy so a portal outage can never make it flaky, and
+a fixed cache is seeded first (`e2e/support/seed-cache.mjs`) so the three
+gov-data tiles resolve to CACHED deterministically. Runs on a port range
+offset from `make run`, so both can be up at once.
+
+<details>
+<summary><b>Terminal output</b> — <code>make test-e2e</code></summary>
+
+```text
+$ make test-e2e
+Running 11 tests using 1 worker
+
+  ✓  exposure.spec.ts   › the three gov-data tiles render with a CACHED label, never blank or error
+  ✓  exposure.spec.ts   › the riskiest vendor card shows an AED figure and 'no replacement exists'
+  ✓  exposure.spec.ts   › the publishing-rule table shows banks=YES and finance companies=MUST COMBINE
+  ✓  operations.spec.ts › all three firms render and pick up their incident count after the demo runs
+  ✓  operations.spec.ts › the outbound payload panel shows tokens and no readable narrative
+  ✓  operations.spec.ts › the matches panel shows a SAME ATTACKER and a SIMILAR ATTACK METHOD card
+  ✓  operations.spec.ts › a "safe to publish: not yet" k-anonymity label is visible
+  ✓  report.spec.ts     › filing the demo incident shows TRICK DETECTED with at least 4 findings
+  ✓  report.spec.ts     › the incident is not downgraded — severity still shows HIGH
+  ✓  report.spec.ts     › all 5 regulators render with the right deadlines, TDRA needing a human decision
+  ✓  report.spec.ts     › the receipt/proof hash is displayed
+
+  11 passed (34.3s)
+```
+
+</details>
+
+<details open>
+<summary><b>Playwright HTML report</b> — all 11 green (<code>npx playwright show-report</code>)</summary>
+<br/>
+
+<img src="docs/screenshots/04-e2e-report.png" alt="Playwright HTML report showing 11 of 11 tests passed" width="850"/>
+
+</details>
+
+### The screens those tests are exercising
+
+<table>
+<tr><td>
+
+**01 · Operations** — three firms, one attacker campaign, correlated with
+zero plaintext shared
+
+<img src="docs/screenshots/01-operations.png" alt="Operations tab: three firms, payload panel showing only tokens, SAME ATTACKER and SIMILAR ATTACK METHOD cards" width="850"/>
+
+</td></tr>
+<tr><td>
+
+**02 · Report & guardrails** — the injected demo email caught, deadlines
+resolved across all 5 regulators, receipt hash produced
+
+<img src="docs/screenshots/02-report.png" alt="Report tab: TRICK DETECTED with 4 findings, 5 regulator deadlines, receipt hash" width="850"/>
+
+</td></tr>
+<tr><td>
+
+**03 · Systemic exposure** — riskiest shared vendor priced in AED, live
+government data, the k-anonymity publishing rule
+
+<img src="docs/screenshots/03-exposure.png" alt="Exposure tab: three LIVE gov-data tiles, UAESWITCH/Jaywan scored CRITICAL with no replacement exists, publishing-rule table" width="850"/>
+
+</td></tr>
+</table>
 
 ---
 
