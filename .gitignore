@@ -5,6 +5,7 @@ __pycache__/
 *.db
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 
 # Env / secrets
 .env
@@ -18,6 +19,9 @@ dist/
 
 # Misc build/runtime
 var/
+test-results/
+playwright-report/
+blob-report/
 
 # Claude Code / AI tooling
 .claude/

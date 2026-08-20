@@ -34,8 +34,10 @@ Both are deliberately short.
 ## Quick start
 
 ```bash
-make install          # contracts (editable) + service deps
-make test             # 21 tests — the privacy and correlation guarantees
+make install          # contracts (editable) + service deps + Playwright browser
+make test             # backend unit tests — the privacy and correlation guarantees
+make test-network     # the handful of tests that hit a real UAE government portal
+make test-e2e         # Playwright smoke suite against the real UI, see below
 make run              # docker compose: 3 connectors + core + web
 make demo             # drive the full scenario through the real services
 ```
@@ -122,6 +124,26 @@ regulator or a bank's counsel.
 - k-anonymity gates aggregate publication while still notifying the parties
 - concentration scoring ranks a non-substitutable shared provider highest, and
   discounts inferred dependency edges
+
+### Running the tests
+
+Three separate suites, kept separate on purpose — a backend assertion and a
+"does the pitch demo actually render this" assertion are different claims:
+
+- **`make test`** — backend unit tests (`tests/`), no network, no services
+  running. This is what CI should gate on.
+- **`make test-network`** — the tests marked `network`, excluded from `make
+  test` by default because they hit a real UAE government portal
+  (`data.ajman.ae`, `tdra.gov.ae`) and can fail on a machine with no internet.
+- **`make test-e2e`** — a Playwright smoke suite (`apps/web/e2e/`) that boots
+  core, all three connectors and the Next.js app as local processes on a port
+  range offset from `make run` (so both can be up at once), drives the actual
+  UI — clicking "Run the demo", "File the incident" — and asserts what's on
+  screen against what the pitch claims. No live network: the core's open-data
+  fetchers are routed through an unreachable proxy so a portal outage can
+  never make this suite flaky, and a fixed cache is seeded first so the three
+  "Live UAE government data" tiles resolve to CACHED deterministically. Runs
+  with `npx playwright test` inside `apps/web` if you'd rather skip `make`.
 
 ---
 
