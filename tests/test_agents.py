@@ -65,6 +65,18 @@ def test_deadlines_are_arithmetic_not_inference():
     assert by(res, Authority.DFSA).deadline == (DETECTED + timedelta(hours=72)).isoformat()
 
 
+def test_cma_deadline_is_48_hours_from_detection():
+    """CMA's clock is 48h from detection — arithmetic, not inference."""
+    res = r(jurisdictions=["CMA"])
+    assert by(res, Authority.CMA).deadline == (DETECTED + timedelta(hours=48)).isoformat()
+
+
+def test_cbuae_deadline_is_24_hours_from_detection():
+    """CBUAE's clock is 24h from detection — arithmetic, not inference."""
+    res = r(jurisdictions=["CBUAE"])
+    assert by(res, Authority.CBUAE).deadline == (DETECTED + timedelta(hours=24)).isoformat()
+
+
 def test_divergent_clocks_are_preserved_not_averaged():
     """ADGM 24h and DIFC 72h are different duties; collapsing them would be wrong."""
     res = r()
