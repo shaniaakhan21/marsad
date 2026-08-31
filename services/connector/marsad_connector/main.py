@@ -23,6 +23,7 @@ from marsad_connector.agents.a4_obligation import resolve as resolve_obligations
 from marsad_connector.agents.a14_supervisor import inspect as inspect_for_injection
 from marsad_connector.config import settings
 from marsad_connector.crypto.tokeniser import build_tokeniser
+from marsad_connector.llm.provider import LLMProvider, build_llm
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("marsad.connector")
@@ -32,6 +33,37 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 #: In-memory for the prototype; swap for the SQLAlchemy model in models.py.
 LOCAL: dict[str, "IncidentIn"] = {}
+
+
+def _build_llm_at_startup() -> LLMProvider:
+    """
+    Construct the extraction provider while the process is booting.
+
+    Built here, at import, so a misconfigured endpoint stops the connector from
+    starting. Deferring it to the first request would mean a connector that passes
+    its health check, sits in production looking fine, and only discovers it is
+    pointed at a hosted vendor when an analyst files a real incident — at which
+    point the plaintext has already been sent.
+    """
+    cfg = settings()
+    provider = build_llm(
+        cfg.llm_provider,
+        **(
+            {}
+            if cfg.llm_provider == "stub"
+            else {
+                "base_url": cfg.llm_base_url,
+                "api_key": cfg.llm_api_key,
+                "model": cfg.llm_model,
+                "sovereign_mode": cfg.sovereign_mode,
+            }
+        ),
+    )
+    log.info("connector.llm_ready provider=%s sovereign_mode=%s", provider.name, cfg.sovereign_mode)
+    return provider
+
+
+LLM: LLMProvider = _build_llm_at_startup()
 
 
 class IndicatorIn(BaseModel):
@@ -63,7 +95,13 @@ class IncidentIn(BaseModel):
 @app.get("/health")
 async def health():
     cfg = settings()
-    return {"ok": True, "institution": cfg.institution_name, "local_incidents": len(LOCAL)}
+    return {
+        "ok": True,
+        "institution": cfg.institution_name,
+        "local_incidents": len(LOCAL),
+        "llm_provider": LLM.name,
+        "sovereign_mode": cfg.sovereign_mode,
+    }
 
 
 @app.post("/v1/incidents")
