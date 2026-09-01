@@ -55,6 +55,7 @@ Both are deliberately short.
 make install          # contracts (editable) + service deps + Playwright browser
 make test             # backend unit tests — the privacy and correlation guarantees
 make test-boundary    # the network boundary, proven inside the real containers
+make test-llm         # the model path against a live Ollama endpoint
 make migrate          # both databases, empty to current, in one command
 make test-network     # the handful of tests that hit a real UAE government portal
 make test-e2e         # Playwright smoke suite against the real UI, see below
@@ -472,6 +473,39 @@ the test extra.
 The single-function guarantee is unchanged. `normalise()` is still one function object
 shared by the write and query paths — `test_write_and_query_paths_share_one_normalisation_function`
 asserts identity, not equivalence.
+
+---
+
+## The model path, measured
+
+Every accuracy figure in this repository used to describe the deterministic offline
+extractor. The LLM path had never been executed. It has now:
+**[docs/model-path-results.md](docs/model-path-results.md)**.
+
+Ollama 0.33.0, `qwen2.5:3b-instruct` (Q4_K_M, 1.93GB), the connector's own prompt and
+schema, the existing fixtures, nothing tuned.
+
+| Set | Deterministic | Model |
+|---|---|---|
+| English | 138/140 = **98.6%** | 74/140 = **52.9%** |
+| Arabic | 70/70 = **100.0%** | 35/70 = **50.0%** |
+
+Across 210 field comparisons the model was right where the deterministic extractor was
+wrong **zero times**. It hallucinates well-formed ATT&CK IDs that are unrelated to the
+incident, paraphrases service names out of the canonical vocabulary, inflates severity,
+reads through Arabic negation, drops indicators, once extracted our own fence marker as
+an indicator, and once answered an Arabic narrative in Chinese.
+
+Six breakages are recorded there rather than worked around — including that Ollama
+rejects the production schema outright (its grammar compiler cannot parse `\d`), that
+`strict: true` does not validate (95 of 203 confidence values fell outside the declared
+`[0,1]`), and that **103 of 203 fields cited evidence that is not in the narrative**,
+which is the guard in `_locate` firing on half of real model output.
+
+```bash
+ollama serve & ollama pull qwen2.5:3b-instruct
+make test-llm
+```
 
 ---
 

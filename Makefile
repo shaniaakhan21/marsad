@@ -1,4 +1,4 @@
-.PHONY: install test test-network test-e2e test-boundary run down demo lint migrate
+.PHONY: install test test-network test-e2e test-boundary test-llm run down demo lint migrate
 install:
 	pip install -e packages/contracts
 	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
@@ -19,6 +19,11 @@ test-boundary:
 	docker compose up -d --build
 	python -m pytest tests/test_network_boundary.py -v -m docker; \
 	  status=$$?; docker compose down; exit $$status
+# The model path against a live endpoint. Needs Ollama running with the model pulled;
+# see docs/model-path-results.md for what running it found.
+test-llm:
+	python -m pytest tests/test_llm_live.py -v -m llm
+
 lint:
 	ruff check packages services tests
 # Both databases, empty to current, in one command. Two separate migration trees on

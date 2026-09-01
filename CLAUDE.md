@@ -115,7 +115,7 @@ real portal is marked `@pytest.mark.network` and stays out of the default run.
 
 ## The rule
 
-**Every change must leave `python -m pytest` fully green.** Currently 606 passed, 21 deselected
+**Every change must leave `python -m pytest` fully green.** Currently 606 passed, 29 deselected
 (the `network` marker — `make test-network`; and the `docker` marker — `make test-boundary`). No
 skips, no xfails, no "unrelated failure". If a test blocks you, it is a claim someone made
 deliberately — understand the claim before you touch it.
