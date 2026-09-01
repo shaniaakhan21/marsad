@@ -1,0 +1,24 @@
+{
+  "id": "02_ransomware_critical",
+  "language": "en",
+  "messiness": "clean prose, severe",
+  "narrative": "Ransomware encrypted the file shares on 2026-03-04 02:15 UTC. Trading was halted for the morning session. The ransom note pointed to bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq. Our core banking platform stayed up.",
+  "expected": {
+    "severity": "CRITICAL",
+    "category": "RANSOMWARE",
+    "affected_services": [
+      "core banking"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "WALLET",
+        "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+      ]
+    ],
+    "techniques": [
+      "T1486"
+    ],
+    "detected_at": "2026-03-04T02:15:00+00:00"
+  }
+}

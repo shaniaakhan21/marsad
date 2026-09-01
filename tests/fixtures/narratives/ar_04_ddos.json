@@ -1,0 +1,24 @@
+{
+  "id": "ar_04_ddos",
+  "language": "ar",
+  "messiness": "Arabic, service outage",
+  "narrative": "هجوم حجب الخدمة استهدف بوابة العملاء في 2026-05-11 at 09:30 وأدى إلى انقطاع الخدمة لمدة 25 دقيقة. مصدر الحركة 91.219.238.12.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "DENIAL_OF_SERVICE",
+    "affected_services": [
+      "client portal"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "IP",
+        "91.219.238.12"
+      ]
+    ],
+    "techniques": [
+      "T1498"
+    ],
+    "detected_at": "2026-05-11T09:30:00+00:00"
+  }
+}

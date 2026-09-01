@@ -256,3 +256,47 @@ export interface SupervisorReport {
   logged_as_intelligence: boolean;
   extraction_blocked: boolean;
 }
+
+
+/* ------------------------------------------------------------------ *
+ * A2 extraction — free-text intake. Mirrors
+ * marsad_connector/agents/a2_extract.py. None of this crosses the
+ * boundary: it is the local review surface an analyst confirms.
+ * ------------------------------------------------------------------ */
+
+export interface TrackedField {
+  name: string;
+  value: unknown;
+  confidence: number;
+  evidence: string | null;
+  span: [number, number] | null;
+  needs_attention: boolean;
+  reason: string;
+  edited: boolean;
+  present: boolean;
+}
+
+export interface ExtractionDraft {
+  draft_id: string;
+  method: string;
+  created_at: string;
+  narrative: string;
+  fields: Record<string, TrackedField>;
+  needs_attention: string[];
+  missing: string[];
+  confidence_threshold: number;
+  autonomy: "PROPOSE_CONFIRM";
+  confirmed: false;
+}
+
+export interface ConfirmResult {
+  incident_id: string;
+  confirmed_by: string;
+  edited_fields: string[];
+  severity: string;
+  indicators: { type: string; value: string }[];
+  techniques: string[];
+  category: string | null;
+  affected_services: string[];
+  third_party_dependencies: string[];
+}

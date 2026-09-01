@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from marsad_contracts.boundary import IncidentSubmission, Sector, SizeBand
 from pydantic import BaseModel, Field
 
+from marsad_connector.agents.a2_extract import ExtractionAgent, ExtractionDraft
 from marsad_connector.agents.a3_redact import RedactionAgent, RedactionError
 from marsad_connector.agents.a4_obligation import resolve as resolve_obligations
 from marsad_connector.agents.a14_supervisor import inspect as inspect_for_injection
@@ -65,6 +66,11 @@ def _build_llm_at_startup() -> LLMProvider:
 
 LLM: LLMProvider = _build_llm_at_startup()
 
+#: Proposals awaiting human confirmation. Deliberately a separate store from LOCAL:
+#: a draft is not an incident, and keeping them in one dict would make it a
+#: one-flag mistake away from being treated as one.
+DRAFTS: dict[str, ExtractionDraft] = {}
+
 
 class IndicatorIn(BaseModel):
     type: str
@@ -90,6 +96,36 @@ class IncidentIn(BaseModel):
     #: Attacker-authored text, kept separate from analyst prose on purpose: this
     #: is the hostile channel, and A14 inspects it as data, never as instruction.
     raw_email: str | None = None
+
+    #: How this incident came to exist. "ANALYST_STRUCTURED" is a human filling the
+    #: fields directly, which is confirmed by definition. "EXTRACTION_CONFIRMED" is
+    #: A2 output a human reviewed and signed off. There is deliberately no third
+    #: value: unconfirmed extraction output never becomes an incident.
+    source: str = "ANALYST_STRUCTURED"
+    confirmed_by: str | None = None
+
+
+class ExtractIn(BaseModel):
+    """Free text as an analyst types it. No structure required, none assumed."""
+
+    narrative: str
+    analyst_notes: str | None = None
+    raw_email: str | None = None
+
+
+class ConfirmIn(BaseModel):
+    """
+    The analyst's sign-off. `edits` overrides any field A2 proposed.
+
+    `analyst` is required and not defaulted: a confirmation with nobody's name on it
+    is not a confirmation, and the whole point of PROPOSE_CONFIRM is that a person
+    stands behind these values.
+    """
+
+    analyst: str
+    edits: dict[str, Any] = Field(default_factory=dict)
+    jurisdictions: list[str] = Field(default_factory=list)
+    essential_service_affected: bool | None = None
 
 
 @app.get("/health")
@@ -130,6 +166,98 @@ async def create_incident(incident: IncidentIn):
         "submitted": False,
         "supervisor": supervisor.as_dict(),
     }
+
+
+@app.post("/v1/intake/extract")
+async def extract_from_text(body: ExtractIn):
+    """
+    A2 — read free text and PROPOSE a structured incident.
+
+    Nothing is filed here. The response is a draft: every field with its confidence
+    and the span of narrative it came from, plus the list the analyst must look at.
+    A14 runs first, on the same text, and as always its verdict is a finding rather
+    than a veto — extraction proceeds either way.
+    """
+    supervisor = inspect_for_injection(
+        "\n".join(filter(None, [body.narrative, body.analyst_notes, body.raw_email]))
+    )
+    if supervisor.verdict != "CLEAN":
+        log.warning(
+            "connector.injection_detected stage=intake verdict=%s score=%d",
+            supervisor.verdict, supervisor.score,
+        )
+
+    try:
+        draft = await ExtractionAgent(LLM).propose(
+            body.narrative, analyst_notes=body.analyst_notes, raw_email=body.raw_email,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    DRAFTS[draft.draft_id] = draft
+    return {"draft": draft.as_dict(), "supervisor": supervisor.as_dict()}
+
+
+@app.post("/v1/intake/{draft_id}/confirm")
+async def confirm_draft(draft_id: str, body: ConfirmIn):
+    """
+    The human gate. Only this turns a proposal into an incident.
+
+    Until it is called, the draft cannot reach A3 at all — reading an incident field
+    off an unconfirmed draft raises rather than returning a value. Filing, previewing
+    and submitting all operate on the incident this creates, never on the draft.
+    """
+    draft = DRAFTS.get(draft_id)
+    if draft is None:
+        raise HTTPException(404, "unknown draft")
+
+    try:
+        confirmed = draft.confirm(analyst=body.analyst, edits=body.edits)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    iid = str(uuid.uuid4())
+    LOCAL[iid] = IncidentIn(
+        narrative=confirmed.narrative,
+        analyst_notes=confirmed.analyst_notes,
+        indicators=confirmed.indicators,
+        techniques=confirmed.techniques,
+        severity=confirmed.severity,
+        obligation_receipt=confirmed.obligation_receipt,
+        detected_at=confirmed.detected_at or datetime.now(timezone.utc),
+        jurisdictions=body.jurisdictions,
+        essential_service_affected=body.essential_service_affected,
+        raw_email=confirmed.raw_email,
+        source="EXTRACTION_CONFIRMED",
+        confirmed_by=confirmed.confirmed_by,
+    )
+    del DRAFTS[draft_id]
+    log.info(
+        "connector.confirmed draft=%s incident=%s by=%s edited=%s",
+        draft_id, iid, confirmed.confirmed_by, list(confirmed.edited_fields),
+    )
+    return {
+        "incident_id": iid,
+        "confirmed_by": confirmed.confirmed_by,
+        "edited_fields": list(confirmed.edited_fields),
+        "severity": confirmed.severity,
+        "indicators": confirmed.indicators,
+        "techniques": confirmed.techniques,
+        # Local-only context, shown to the analyst. Never crosses the boundary —
+        # affected system names and vendor names are on the never-cross list.
+        "category": confirmed.category,
+        "affected_services": list(confirmed.affected_services),
+        "third_party_dependencies": list(confirmed.third_party_dependencies),
+    }
+
+
+@app.get("/v1/intake/{draft_id}")
+async def get_draft(draft_id: str):
+    """Re-read a pending proposal. Local only."""
+    draft = DRAFTS.get(draft_id)
+    if draft is None:
+        raise HTTPException(404, "unknown draft")
+    return draft.as_dict()
 
 
 @app.get("/v1/incidents/{iid}")

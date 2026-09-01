@@ -1,0 +1,22 @@
+{
+  "id": "13_ticket_paste",
+  "language": "en",
+  "messiness": "pasted ticket, semi-structured",
+  "narrative": "TICKET SEC-4471\nOpened: 2026-05-22 13:00 UTC\nSummary: unauthorised payments detected on the card processing platform\nDetail: fraudulent transactions totalling AED 340,000. Beneficiary IBAN AE07 0331 2345 6789 0123 456. Severity: HIGH.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "FRAUD",
+    "affected_services": [
+      "card processing"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "IBAN",
+        "AE07 0331 2345 6789 0123 456"
+      ]
+    ],
+    "techniques": null,
+    "detected_at": "2026-05-22T13:00:00+00:00"
+  }
+}

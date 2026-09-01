@@ -1,6 +1,7 @@
 import type {
-  CohortReport, ConcentrationReport, Correlation, DataRegistry, FreshnessReport,
-  IncidentSubmission, MarketBasis, ObligationResult, Roadmap, SupervisorReport,
+  CohortReport, ConcentrationReport, ConfirmResult, Correlation, DataRegistry,
+  ExtractionDraft, FreshnessReport, IncidentSubmission, MarketBasis,
+  ObligationResult, Roadmap, SupervisorReport,
 } from "./types";
 
 const CORE = process.env.NEXT_PUBLIC_CORE_URL ?? "http://localhost:8000";
@@ -30,6 +31,31 @@ export const api = {
 
   createIncident: (base: string, body: unknown) =>
     json<{ incident_id: string; supervisor?: SupervisorReport }>(`${base}/v1/incidents`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  /** A2 — propose a structured incident from free text. Files nothing. */
+  extract: (base: string, body: { narrative: string; analyst_notes?: string; raw_email?: string }) =>
+    json<{ draft: ExtractionDraft; supervisor: SupervisorReport }>(`${base}/v1/intake/extract`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  /** The human gate. Only this turns a proposal into an incident. */
+  confirmDraft: (
+    base: string,
+    draftId: string,
+    body: {
+      analyst: string;
+      edits?: Record<string, unknown>;
+      jurisdictions?: string[];
+      essential_service_affected?: boolean | null;
+    },
+  ) =>
+    json<ConfirmResult>(`${base}/v1/intake/${draftId}/confirm`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),

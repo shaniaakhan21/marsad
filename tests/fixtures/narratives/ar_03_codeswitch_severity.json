@@ -1,0 +1,24 @@
+{
+  "id": "ar_03_codeswitch_severity",
+  "language": "ar",
+  "messiness": "code-switched: Arabic prose, English severity value",
+  "narrative": "تقرير حادث — رسالة تصيد وصلت إلى فريق منصة التداول في 2026-02-14 08:45 UTC. تم إرسال بيانات الدخول إلى fake-bank-ae[.]com. الأثر: moderate.",
+  "expected": {
+    "severity": "MEDIUM",
+    "category": "PHISHING",
+    "affected_services": [
+      "trading platform"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "DOMAIN",
+        "fake-bank-ae[.]com"
+      ]
+    ],
+    "techniques": [
+      "T1566"
+    ],
+    "detected_at": "2026-02-14T08:45:00+00:00"
+  }
+}

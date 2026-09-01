@@ -6,6 +6,10 @@ dependencies = [
   "fastapi>=0.110", "uvicorn[standard]>=0.29", "pydantic>=2.6",
   "pydantic-settings>=2.2", "httpx>=0.27", "sqlalchemy>=2.0",
   "aiosqlite>=0.20", "marsad-contracts",
+  # Arabic normalisation for incident intake. Not optional: without it the same
+  # Arabic indicator written two ways tokenises to two different tokens and the
+  # correlation silently never fires. See lang/arabic.py.
+  "camel-tools>=1.5",
 ]
 
 [project.optional-dependencies]

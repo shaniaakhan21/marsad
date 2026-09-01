@@ -1,7 +1,7 @@
 .PHONY: install test test-network test-e2e run down demo lint
 install:
 	pip install -e packages/contracts
-	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy aiosqlite openpyxl pytest ruff
+	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy aiosqlite openpyxl camel-tools pytest ruff
 	cd apps/web && npm install && npx playwright install --with-deps chromium
 test:
 	python -m pytest tests/ -v

@@ -5,6 +5,12 @@ import { test, expect } from "@playwright/test";
  * prompt injection in its raw_email) and checks every claim the pitch makes
  * about the A14 trick detector and the A4 obligation resolver.
  *
+ * Intake is now free text: an analyst types prose, A2 proposes the structured
+ * fields, and a human confirms before anything is filed. So filing is two
+ * clicks, and `file()` below performs both. The step between them is not a
+ * formality — `the incident is not filed until the analyst confirms` asserts
+ * that nothing exists after the first click alone.
+ *
  * Findings are asserted by name rather than by count alone: given the fixed
  * injected email in apps/web/app/report/page.tsx, exactly these four
  * signatures fire — role_impersonation, instruction_override,
@@ -19,12 +25,62 @@ const EXPECTED_FINDINGS = [
   "suppression_request",
 ];
 
+/** Drive the real two-step intake: propose, then confirm. */
+async function file(page: import("@playwright/test").Page) {
+  await page.getByRole("button", { name: "▶ Read the report" }).click();
+  await page.getByRole("button", { name: "▶ Confirm & file the incident" }).click({
+    timeout: 15_000,
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/report");
-  await page.getByRole("button", { name: "▶ File the incident" }).click();
+});
+
+test("free text is turned into fields the analyst can see and edit", async ({ page }) => {
+  await page.getByRole("button", { name: "▶ Read the report" }).click();
+
+  await expect(page.getByText("◆ NOT FILED YET — WAITING FOR YOU")).toBeVisible({
+    timeout: 15_000,
+  });
+  // Every field arrives with a value the analyst can overwrite.
+  await expect(page.getByLabel("severity")).toHaveValue("HIGH");
+  await expect(page.getByLabel("category")).toHaveValue("PHISHING");
+  await expect(page.getByLabel("detected_at")).toHaveValue(/2026-08-19T08:00/);
+  await expect(page.getByLabel("indicators")).toHaveValue(/sso-almaha-verify\.com/);
+  // and with the span of text it was read from.
+  await expect(page.getByText(/read from: .*Severity: HIGH/)).toBeVisible();
+});
+
+test("the incident is not filed until the analyst confirms", async ({ page }) => {
+  await page.getByRole("button", { name: "▶ Read the report" }).click();
+  await expect(page.getByText("◆ NOT FILED YET — WAITING FOR YOU")).toBeVisible({
+    timeout: 15_000,
+  });
+
+  // No deadlines, no receipt: A4 has not run, because no incident exists yet.
+  await expect(page.getByText("Your deadlines")).toHaveCount(0);
+  await expect(page.getByText("Proof this happened (only this leaves your firm)")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "▶ Confirm & file the incident" }).click();
+  await expect(page.getByText("Your deadlines")).toBeVisible({ timeout: 15_000 });
+});
+
+test("an analyst edit overrides what the model proposed", async ({ page }) => {
+  await page.getByRole("button", { name: "▶ Read the report" }).click();
+  await expect(page.getByLabel("severity")).toBeVisible({ timeout: 15_000 });
+
+  await page.getByLabel("severity").fill("CRITICAL");
+  await page.getByRole("button", { name: "▶ Confirm & file the incident" }).click();
+
+  await expect(page.getByText("Filed — you confirmed these values")).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText(/severity: CRITICAL/)).toBeVisible();
 });
 
 test("filing the demo incident shows TRICK DETECTED with at least 4 findings", async ({ page }) => {
+  await file(page);
   await expect(page.getByText("◆ TRICK DETECTED")).toBeVisible({ timeout: 15_000 });
   for (const signature of EXPECTED_FINDINGS) {
     await expect(page.getByText(signature, { exact: true })).toBeVisible();
@@ -32,12 +88,14 @@ test("filing the demo incident shows TRICK DETECTED with at least 4 findings", a
 });
 
 test("the incident is not downgraded — severity still shows HIGH", async ({ page }) => {
+  await file(page);
   await expect(page.getByText("◆ TRICK DETECTED")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/severity: HIGH/)).toBeVisible();
   await expect(page.getByText(/was not downgraded/)).toBeVisible();
 });
 
 test("all 5 regulators render with the right deadlines, TDRA needing a human decision", async ({ page }) => {
+  await file(page);
   const main = page.locator("main");
   await expect(main.getByText("Your deadlines")).toBeVisible({ timeout: 15_000 });
 
@@ -69,6 +127,7 @@ test("all 5 regulators render with the right deadlines, TDRA needing a human dec
 });
 
 test("the receipt/proof hash is displayed", async ({ page }) => {
+  await file(page);
   await expect(page.getByText("Your deadlines")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Proof this happened (only this leaves your firm)")).toBeVisible();
   // sha256 hex digest, 64 characters

@@ -26,6 +26,10 @@ class LocalIncident(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     narrative: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Arabic-normalised copy of the narrative. Stored beside the raw text, never
+    #: instead of it — the analyst is shown what they typed, matching runs on this.
+    #: Both are plaintext and both stay inside the institution.
+    narrative_normalised: Mapped[str | None] = mapped_column(Text, default=None)
     analyst_notes: Mapped[str | None] = mapped_column(Text, default=None)
     indicators: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     techniques: Mapped[list[str]] = mapped_column(JSON, default=list)

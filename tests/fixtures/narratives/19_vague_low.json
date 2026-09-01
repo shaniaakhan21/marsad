@@ -1,0 +1,15 @@
+{
+  "id": "19_vague_low",
+  "language": "en",
+  "messiness": "vague, deliberately thin",
+  "narrative": "A staff member reported a suspicious message. Blocked before anyone clicked. No impact.",
+  "expected": {
+    "severity": "LOW",
+    "category": null,
+    "affected_services": null,
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": null,
+    "detected_at": null
+  }
+}

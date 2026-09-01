@@ -1,0 +1,22 @@
+{
+  "id": "ar_01_phishing",
+  "language": "ar",
+  "messiness": "clean Arabic prose",
+  "narrative": "تلقى موظفو قسم المالية رسالة تصيد تحاكي بوابة الدخول الموحد في 2026-08-19 08:00 UTC. تم إدخال بيانات الاعتماد في https://sso-fake-portal.com. الأثر: عالي.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "PHISHING",
+    "affected_services": null,
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "URL",
+        "https://sso-fake-portal.com"
+      ]
+    ],
+    "techniques": [
+      "T1566"
+    ],
+    "detected_at": "2026-08-19T08:00:00+00:00"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "03_ddos_trading",
+  "language": "en",
+  "messiness": "clean prose",
+  "narrative": "A volumetric DDoS hit the trading platform on 2026-05-11 at 09:30, saturating the link for 25 minutes. Source traffic came largely from 91.219.238.12. No data was lost and the incident was contained quickly.",
+  "expected": {
+    "severity": "MEDIUM",
+    "category": "DENIAL_OF_SERVICE",
+    "affected_services": [
+      "trading platform"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "IP",
+        "91.219.238.12"
+      ]
+    ],
+    "techniques": [
+      "T1498"
+    ],
+    "detected_at": "2026-05-11T09:30:00+00:00"
+  }
+}
