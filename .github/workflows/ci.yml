@@ -27,7 +27,10 @@ jobs:
         run: |
           pip install -e packages/contracts
           pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx \
-                      sqlalchemy "psycopg[binary]" alembic openpyxl camel-tools pytest ruff
+                      sqlalchemy "psycopg[binary]" alembic openpyxl pytest ruff
+          # The oracle the vendored Arabic normalisation is checked against, codepoint
+          # by codepoint. A test dependency only — never in the connector image.
+          pip install "camel-tools>=1.5"
 
       - name: Full suite
         run: python -m pytest tests/ -v
@@ -42,6 +45,11 @@ jobs:
       # from the core without a line changing.
       - name: Persistence — edge and core databases stay separate
         run: python -m pytest tests/test_persistence.py -v
+
+      # Vendoring is only safe while this passes: every codepoint in the Arabic block
+      # must normalise identically to the real camel-tools.
+      - name: Vendored Arabic normalisation matches CAMeL Tools
+        run: python -m pytest tests/test_vendored_normalisation.py -v
 
       - name: Migrations run from empty to current, both databases
         run: |
