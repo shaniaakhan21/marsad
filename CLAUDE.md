@@ -115,7 +115,12 @@ real portal is marked `@pytest.mark.network` and stays out of the default run.
 
 ## The rule
 
-**Every change must leave `python -m pytest` fully green.** Currently 276 passed, 2 deselected
-(the `network` marker; run those with `make test-network`). No skips, no xfails, no "unrelated
-failure". If a test blocks you, it is a claim someone made deliberately — understand the claim
-before you touch it.
+**Every change must leave `python -m pytest` fully green.** Currently 284 passed, 17 deselected
+(the `network` marker — `make test-network`; and the `docker` marker — `make test-boundary`). No
+skips, no xfails, no "unrelated failure". If a test blocks you, it is a claim someone made
+deliberately — understand the claim before you touch it.
+
+Two of those tests check the central claim rather than a mechanism supporting it:
+`tests/test_canary.py` proves nothing planted inside an institution reaches the core, and
+`tests/test_network_boundary.py` proves a connector cannot reach the core at all. Both run in CI.
+Neither may be weakened to make a change pass.

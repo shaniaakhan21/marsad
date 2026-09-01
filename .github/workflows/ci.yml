@@ -1,0 +1,93 @@
+# CI exists for one reason: so a future refactor cannot silently breach the privacy
+# boundary. The canary job proves nothing planted inside an institution reaches the
+# core; the boundary job proves a connector cannot reach the core at all.
+#
+# Both are required. A change that breaks either is a change that breaks the only
+# claim MARSAD makes.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend suite (includes the canary test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -e packages/contracts
+          pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx \
+                      sqlalchemy aiosqlite openpyxl camel-tools pytest ruff
+
+      - name: Full suite
+        run: python -m pytest tests/ -v
+
+      # Called out separately so a failure here is unmistakable in the run summary:
+      # this is the central privacy claim, not a unit test.
+      - name: Canary — nothing from inside the institution reaches the core
+        run: python -m pytest tests/test_canary.py -v
+
+      # The repo does not lint clean; the rule is a ratchet, not a gate. See CLAUDE.md.
+      - name: Lint ratchet (must not exceed the recorded baseline)
+        run: |
+          BASELINE=39
+          COUNT=$(ruff check packages services tests --output-format=concise | grep -c ':' || true)
+          echo "ruff findings: $COUNT (baseline $BASELINE)"
+          if [ "$COUNT" -gt "$BASELINE" ]; then
+            echo "::error::lint regressed: $COUNT findings, baseline is $BASELINE"
+            ruff check packages services tests --output-format=concise
+            exit 1
+          fi
+
+  boundary:
+    name: Network boundary (Docker isolation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test deps
+        run: pip install pytest httpx
+
+      - name: Build and start the federation
+        run: docker compose up -d --build
+
+      - name: Wait for the stack
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health > /dev/null \
+               && curl -sf http://localhost:8101/health > /dev/null; then
+              echo "stack ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::stack did not become ready"
+          docker compose logs --tail=80
+          exit 1
+
+      - name: Boundary suite — isolation must hold at the network layer
+        run: python -m pytest tests/test_network_boundary.py -v -m docker
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker network ls
+          docker compose logs --tail=120
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
