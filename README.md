@@ -20,6 +20,7 @@ against the real UI. See [Test coverage](#test-coverage).
 - [Layout](#layout)
 - [The three swap points](#the-three-swap-points)
 - [Test coverage](#test-coverage)
+- [Proving the boundary](#proving-the-boundary)
 - [Design decisions worth knowing before you change things](#design-decisions-worth-knowing-before-you-change-things)
 - [Roadmap](#roadmap)
 - [Government data this runs on](#government-data-this-runs-on)
@@ -53,6 +54,7 @@ Both are deliberately short.
 ```bash
 make install          # contracts (editable) + service deps + Playwright browser
 make test             # backend unit tests — the privacy and correlation guarantees
+make test-boundary    # the network boundary, proven inside the real containers
 make test-network     # the handful of tests that hit a real UAE government portal
 make test-e2e         # Playwright smoke suite against the real UI, see below
 make run              # docker compose: 3 connectors + core + web
@@ -281,6 +283,85 @@ government data, the k-anonymity publishing rule
 
 </td></tr>
 </table>
+
+---
+
+## Proving the boundary
+
+Everything else in this repository tests a mechanism that *supports* the privacy
+claim. These two test the claim itself, and they are the reason to believe the rest.
+
+### The canary test — nothing from inside the institution reaches the core
+
+Runs in the default suite, so it cannot be forgotten:
+
+```bash
+make test                                   # included
+python -m pytest tests/test_canary.py -v    # on its own
+```
+
+It plants unique random strings inside an incident, runs the **real** pipeline —
+A2 extraction, human confirmation, A3 redaction, submission, core correlation — and
+then looks for them everywhere the core can hold or emit anything: an exhaustive
+recursive walk of the core's entire object graph, every API response including the
+OpenAPI document, and every line the core logs. Four surfaces are canaried
+separately: ordinary prose, an analyst note, a plaintext indicator, and a vendor name
+planted specifically because extraction quotes it **verbatim as span evidence** — the
+provenance surface free-text intake introduced. A fifth is Arabic, planted so that
+normalisation rewrites it, because the canary then exists in two forms and both are
+inside the institution.
+
+Two things keep it honest. Every canary is asserted **present** on the edge before it
+is asserted absent at the core, and the core is asserted to have actually ingested the
+submission — a canary test that passes because nothing ran is a green light with
+nothing behind it. And `test_the_sweep_can_actually_find_a_leak` plants a canary
+directly into core state and requires the sweep to catch it, so the sweep itself is
+tested. `test_core_still_has_no_database_this_sweep_would_miss` fails the build the
+day Postgres arrives, so the sweep cannot silently stop covering the store.
+
+### The network boundary test — isolation the code cannot undo
+
+```bash
+make test-boundary        # brings the stack up, runs the suite, tears it down
+
+# or by hand:
+docker compose up -d --build
+python -m pytest tests/test_network_boundary.py -v -m docker
+docker compose down
+```
+
+Each connector sits alone on its own Docker network; core sits alone on `core_net`.
+One container — `boundary-gateway` — is attached to both sides and forwards exactly
+one endpoint, `POST /v1/submissions`. The tests run *inside* the containers and
+assert that a connector cannot reach core by service name or by raw IP, that core
+cannot reach a connector's plaintext store, and that two institutions cannot reach
+each other. A positive control drives a real incident all the way through the
+permitted route, because isolation tests pass trivially when everything is broken.
+
+#### What the boundary test does and does not prove
+
+| Claim | Enforced by | Proven |
+|---|---|---|
+| A connector cannot reach core, by name or address | Docker networking | Yes |
+| Core cannot reach a connector's plaintext store | Docker networking | Yes |
+| Two institutions cannot reach each other | Docker networking | Yes |
+| Only `POST /v1/submissions` crosses | nginx config in `infra/` | Yes, but this is a proxy rule, not network isolation |
+| A connector cannot reach the host's own namespace | — | **No.** See below |
+
+The last row is a real limitation, recorded rather than glossed. These containers run
+on one laptop, and an edge network that is not `internal` leaves a container able to
+reach `host.docker.internal`. Marking the edge networks `internal: true` closes it and
+also breaks published ports, so the dashboard and `make demo` stop working — the
+tradeoff was made in favour of a working demo, because the exposure is an artifact of
+the simulation rather than the design: in deployment the connector runs inside an
+institution and the core in another organisation, with no shared host to route
+through. `test_the_single_host_limitation_is_recorded_rather_than_claimed_away`
+asserts the claims we *do* make still hold, and skips with an explanation rather than
+pretending the hole is closed.
+
+Both suites run in CI on every push (`.github/workflows/ci.yml`), the canary in the
+backend job and the boundary in its own Docker job, so a refactor cannot quietly
+breach either.
 
 ---
 
