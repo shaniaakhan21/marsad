@@ -59,6 +59,27 @@ boundary is a regression**, whether by adding the missing attributes to the draf
 gate to a boolean flag a caller can forget, or by constructing a `ConfirmedIncident` anywhere
 other than `confirm()`.
 
+## A model-proposed indicator is guilty until located and confirmed
+
+Locatability of cited evidence is **advisory** for every extracted field except one.
+For `indicators` it is a **hard gate**: a proposed value that does not appear verbatim
+in the narrative is dropped, not flagged, whatever confidence came with it. And a
+model-proposed indicator list additionally requires explicit analyst sign-off before
+`confirm()` will produce a `ConfirmedIncident` — an empty list is a valid answer,
+silence is not.
+
+The asymmetry is the point. A wrong severity is wrong inside one institution and a
+human is going to read it. **A wrong indicator becomes a token**: a value in a matching
+space that every other institution's submissions are compared against, which nobody
+downstream can review because they see only the hash. It either matches nothing, or it
+manufactures a campaign that never happened. The first live model run
+([docs/model-path-results.md](docs/model-path-results.md)) returned our own
+`UNTRUSTED_` fence marker as an indicator at confidence 1.0, so this is a measured
+failure mode rather than a precaution.
+
+Do not relax this to a warning, and do not gate it on confidence — the model reported
+maximum confidence on the values it invented.
+
 ## A14 injection detection is deterministic on purpose
 
 [a14_supervisor.py](services/connector/marsad_connector/agents/a14_supervisor.py) is regex plus
@@ -115,7 +136,7 @@ real portal is marked `@pytest.mark.network` and stays out of the default run.
 
 ## The rule
 
-**Every change must leave `python -m pytest` fully green.** Currently 606 passed, 29 deselected
+**Every change must leave `python -m pytest` fully green.** Currently 612 passed, 29 deselected
 (the `network` marker — `make test-network`; and the `docker` marker — `make test-boundary`). No
 skips, no xfails, no "unrelated failure". If a test blocks you, it is a claim someone made
 deliberately — understand the claim before you touch it.

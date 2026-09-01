@@ -29,10 +29,22 @@ from marsad_connector.llm.sovereignty import assert_sovereign
 
 log = logging.getLogger("marsad.llm")
 
-#: Long enough for a small open-weight model on modest local hardware to finish a
-#: constrained generation; short enough that an analyst filing an incident is never
-#: left staring at a spinner. Extraction is not on any regulatory clock.
-REQUEST_TIMEOUT_SECONDS = 45.0
+#: Derived from measurement, not chosen for roundness.
+#:
+#: The first live run (docs/model-path-results.md — Ollama 0.33.0, qwen2.5:3b-instruct,
+#: CPU-only, 30 narratives) recorded a mean of 40.1s, a median of 36.8s, a p95 of
+#: 53.5s and a slowest successful extraction of 90.5s. The previous value of 45s sat
+#: between the mean and the p95: **8 of 30 extractions exceeded it**, so the shipped
+#: default failed roughly a quarter of requests on that hardware while looking like a
+#: model problem rather than a timeout.
+#:
+#: The budget is twice the slowest extraction actually observed, so a host around half
+#: the speed of the measured one still completes. It is not open-ended: extraction is
+#: not on any regulatory clock, but an analyst filing an incident should not wait
+#: minutes, and a bounded budget is also what stops a runaway generation from tying up
+#: a worker indefinitely — see MAX_INDICATORS in a2_extract for the other half of that.
+SLOWEST_MEASURED_EXTRACTION_SECONDS = 90.5
+REQUEST_TIMEOUT_SECONDS = 2 * SLOWEST_MEASURED_EXTRACTION_SECONDS
 
 #: Extraction must be reproducible. The same incident text put through the same
 #: model twice has to yield the same structured fields, or a reviewer cannot audit

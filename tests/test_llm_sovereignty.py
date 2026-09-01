@@ -26,14 +26,14 @@ sys.path[:0] = [
     str(ROOT / "services" / "connector"),
 ]
 
-from marsad_connector.llm import provider as pv  # noqa: E402
-from marsad_connector.llm.provider import (  # noqa: E402
+from marsad_connector.llm import provider as pv
+from marsad_connector.llm.provider import (
     LLMResponseError,
     OpenAICompatibleProvider,
     StubProvider,
     build_llm,
 )
-from marsad_connector.llm.sovereignty import (  # noqa: E402
+from marsad_connector.llm.sovereignty import (
     SovereigntyError,
     assert_sovereign,
     check_api_key,
@@ -289,9 +289,27 @@ def test_extraction_is_reproducible(monkeypatch):
 
 
 def test_the_request_is_bounded_in_time(monkeypatch):
-    """A hung local model must not leave an analyst staring at a spinner."""
+    """
+    A hung local model must not leave an analyst staring at a spinner — and the budget
+    must be derived from what was measured rather than picked for roundness.
+
+    The first live run recorded a mean of 40.1s and a slowest successful extraction of
+    90.5s; the previous 45s default sat between them and failed 8 of 30 requests. This
+    asserts the derivation, not a literal, so the constant cannot drift away from the
+    measurement it claims to come from.
+    """
+    from marsad_connector.llm.provider import (
+        REQUEST_TIMEOUT_SECONDS,
+        SLOWEST_MEASURED_EXTRACTION_SECONDS,
+    )
+
     _, captured = extract(monkeypatch, '{"summary": "s", "severity": "HIGH"}')
-    assert captured["timeout"] == 45.0
+    assert captured["timeout"] == REQUEST_TIMEOUT_SECONDS
+    assert REQUEST_TIMEOUT_SECONDS == 2 * SLOWEST_MEASURED_EXTRACTION_SECONDS
+    assert REQUEST_TIMEOUT_SECONDS > SLOWEST_MEASURED_EXTRACTION_SECONDS > 40.1, (
+        "the budget must exceed the slowest extraction actually observed, which must "
+        "itself exceed the measured mean"
+    )
 
 
 def test_incident_text_is_fenced_as_data_never_as_instruction(monkeypatch):
