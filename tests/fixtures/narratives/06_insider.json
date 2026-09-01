@@ -1,0 +1,17 @@
+{
+  "id": "06_insider",
+  "language": "en",
+  "messiness": "clean prose",
+  "narrative": "A departing employee copied client records to a personal drive on 2026-04-09 17:45 UTC. Data was copied from the custody platform. Contained immediately; low impact confirmed after review.",
+  "expected": {
+    "severity": "LOW",
+    "category": "INSIDER",
+    "affected_services": [
+      "custody platform"
+    ],
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": null,
+    "detected_at": "2026-04-09T17:45:00+00:00"
+  }
+}

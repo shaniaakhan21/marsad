@@ -1,0 +1,19 @@
+{
+  "id": "12_all_caps",
+  "language": "en",
+  "messiness": "shouted, urgent",
+  "narrative": "URGENT CRITICAL INCIDENT. RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC. FUNDS WERE TRANSFERRED OUT BEFORE WE STOPPED IT.",
+  "expected": {
+    "severity": "CRITICAL",
+    "category": "RANSOMWARE",
+    "affected_services": [
+      "settlement system"
+    ],
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": [
+      "T1486"
+    ],
+    "detected_at": "2026-08-02T04:00:00+00:00"
+  }
+}

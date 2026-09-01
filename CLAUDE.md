@@ -42,6 +42,23 @@ have inverted the design. `_assert_no_leakage` sits on top as belt-and-braces: d
 because "the types already prevent this", it turns a future refactoring mistake into a loud
 failure rather than a silent disclosure. A3 fails closed — `RedactionError`, never partial.
 
+## Extraction proposes; a human confirms
+
+Free-text intake ([a2_extract.py](services/connector/marsad_connector/agents/a2_extract.py)) reads
+an analyst's prose and produces an `ExtractionDraft`. A draft is a proposal, not an incident, and
+it **structurally cannot reach A3**: the attributes A3 reads are not present on it, and touching
+one raises `UnconfirmedExtractionError` rather than returning a value. `confirm(analyst=...)` is
+the only path to a `ConfirmedIncident`, and a `ConfirmedIncident` is the only thing A3 will build
+from.
+
+A2 is `Autonomy.PROPOSE_CONFIRM`, never `AUTOMATIC` — the analyst sees every field with its
+confidence and the span of text it came from, and may edit any of them. Fields the narrative does
+not state are omitted, never guessed: a confident wrong severity is worse than a blank one,
+because a blank prompts a question and a guess does not. **Any change that lets a draft reach the
+boundary is a regression**, whether by adding the missing attributes to the draft, by relaxing the
+gate to a boolean flag a caller can forget, or by constructing a `ConfirmedIncident` anywhere
+other than `confirm()`.
+
 ## A14 injection detection is deterministic on purpose
 
 [a14_supervisor.py](services/connector/marsad_connector/agents/a14_supervisor.py) is regex plus
@@ -98,7 +115,7 @@ real portal is marked `@pytest.mark.network` and stays out of the default run.
 
 ## The rule
 
-**Every change must leave `python -m pytest` fully green.** Currently 142 passed, 2 deselected
+**Every change must leave `python -m pytest` fully green.** Currently 196 passed, 2 deselected
 (the `network` marker; run those with `make test-network`). No skips, no xfails, no "unrelated
 failure". If a test blocks you, it is a claim someone made deliberately — understand the claim
 before you touch it.

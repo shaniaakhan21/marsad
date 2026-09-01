@@ -1,0 +1,28 @@
+{
+  "id": "01_clean_phishing",
+  "language": "en",
+  "messiness": "clean prose, complete",
+  "narrative": "Finance staff received a credential-harvesting email impersonating the internal SSO portal at 2026-08-19 08:00 UTC. Two users submitted credentials at https://sso-almaha-verify.com/portal hosted on 185.220.101[.]44. The online banking service was unavailable for 40 minutes.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "PHISHING",
+    "affected_services": [
+      "online banking"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "URL",
+        "https://sso-almaha-verify.com/portal"
+      ],
+      [
+        "IP",
+        "185.220.101[.]44"
+      ]
+    ],
+    "techniques": [
+      "T1566.002"
+    ],
+    "detected_at": "2026-08-19T08:00:00+00:00"
+  }
+}

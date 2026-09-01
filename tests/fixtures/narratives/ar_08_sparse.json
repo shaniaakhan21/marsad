@@ -1,0 +1,17 @@
+{
+  "id": "ar_08_sparse",
+  "language": "ar",
+  "messiness": "Arabic, deliberately thin — most fields absent",
+  "narrative": "حدث شيء غير معتاد في تطبيق الهاتف. ما زلنا نتحقق.",
+  "expected": {
+    "severity": null,
+    "category": null,
+    "affected_services": [
+      "mobile app"
+    ],
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": null,
+    "detected_at": null
+  }
+}

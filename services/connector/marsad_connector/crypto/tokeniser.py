@@ -30,6 +30,8 @@ from abc import ABC, abstractmethod
 
 from marsad_contracts.boundary import IndicatorType
 
+from marsad_connector.lang.arabic import normalise as normalise_arabic
+
 TOKEN_LEN = 32  # hex chars retained; 128 bits is ample for equality matching
 
 
@@ -40,8 +42,16 @@ def canonicalise(value: str, indicator_type: IndicatorType) -> str:
 
     This function is part of the security surface: it must be identical across
     every connector, so it lives here rather than in caller code.
+
+    Arabic normalisation is applied unconditionally, to every value, and never
+    behind a language check. Two institutions writing the same Arabic-bearing
+    indicator — one with hamza and diacritics, one without — must produce the same
+    token, and a language detector that answered differently on the two sides would
+    break that with no error to notice: just a token that never matches. The same
+    `normalise` used here is the one A2 matches with, so write and query cannot drift
+    apart. See `lang/arabic.py`.
     """
-    v = unicodedata.normalize("NFKC", value).strip().lower()
+    v = normalise_arabic(unicodedata.normalize("NFKC", value)).strip().lower()
 
     if indicator_type in (IndicatorType.DOMAIN, IndicatorType.URL):
         v = v.removeprefix("http://").removeprefix("https://").rstrip("/")
