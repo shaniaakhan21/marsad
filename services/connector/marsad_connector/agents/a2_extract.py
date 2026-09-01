@@ -49,7 +49,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from marsad_contracts.boundary import IndicatorType, SeverityBand
+import annotated_types
+from marsad_contracts.boundary import IncidentSubmission, IndicatorType, SeverityBand
 
 from marsad_connector.agents.base import Agent, Autonomy
 from marsad_connector.lang.arabic import (
@@ -91,6 +92,14 @@ class IncidentCategory(str, Enum):
 #: and the cost of a wrong severity reaching a regulator's clock is not.
 CONFIDENCE_THRESHOLD = 0.70
 
+#: The range a confidence may occupy. Enforced HERE rather than trusted to the schema:
+#: `response_format: json_schema` with `strict: true` declares `minimum: 0, maximum: 1`
+#: and does not enforce it — 95 of 203 values in the first live run fell outside the
+#: range and the largest was 100.0 (docs/model-path-results.md). A value outside this
+#: range is a malformed response, not a low-confidence answer, and must not be clamped
+#: into something that looks like one.
+CONFIDENCE_RANGE = (0.0, 1.0)
+
 #: Fields the analyst must positively see before anything is filed, even when the
 #: model is confident. Severity drives A4's deadlines and the correlation's coarse
 #: band; detected_at starts every regulatory clock in the country.
@@ -105,6 +114,39 @@ EXTRACTED_FIELDS = (
 # --------------------------------------------------------------------------
 # The schema, built from the contract's own enums
 # --------------------------------------------------------------------------
+
+
+def _contract_max_items(field_name: str) -> int:
+    """
+    Read a list cap straight off the boundary contract.
+
+    Read rather than repeated. A literal here would be a second copy of a number the
+    contract already enforces, and the two would drift the moment either moved —
+    with the schema silently permitting more than the payload can carry.
+    """
+    field = IncidentSubmission.model_fields[field_name]
+    caps = [m.max_length for m in field.metadata if isinstance(m, annotated_types.MaxLen)]
+    if not caps:
+        raise RuntimeError(
+            f"IncidentSubmission.{field_name} no longer declares a max_length. The "
+            f"extraction schema derives its array bound from it, so the bound has "
+            f"silently disappeared — restore the contract cap or bound this explicitly."
+        )
+    return caps[0]
+
+
+#: Array bounds for the extraction schema. These are a denial-of-service control, not
+#: tidying. Under grammar-constrained decoding an unbounded array has nowhere to stop:
+#: `17_many_indicators` generated for 900 seconds without completing and had to be
+#: killed (docs/model-path-results.md). An analyst filing an indicator-dense incident
+#: could hang the connector for as long as the timeout allows.
+#:
+#: The two that cross take the contract's own caps. The two that never cross have no
+#: contract counterpart, so they carry a local bound chosen to be far above any real
+#: incident and far below anything that generates for minutes.
+MAX_INDICATORS = _contract_max_items("tokens")
+MAX_TECHNIQUES = _contract_max_items("technique_set")
+MAX_LOCAL_LIST_ITEMS = 64
 
 
 def _tracked(value_schema: dict[str, Any], description: str) -> dict[str, Any]:
@@ -161,16 +203,19 @@ EXTRACTION_SCHEMA: dict[str, Any] = {
             "Incident class. UNKNOWN only when the narrative describes an incident of no clear class.",
         ),
         "affected_services": _tracked(
-            {"type": ["array", "null"], "items": {"type": "string"}},
+            {"type": ["array", "null"], "items": {"type": "string"},
+             "maxItems": MAX_LOCAL_LIST_ITEMS},
             "Business services disrupted, as named in the narrative. Never leaves the institution.",
         ),
         "third_party_dependencies": _tracked(
-            {"type": ["array", "null"], "items": {"type": "string"}},
+            {"type": ["array", "null"], "items": {"type": "string"},
+             "maxItems": MAX_LOCAL_LIST_ITEMS},
             "Named external providers involved. Never leaves the institution.",
         ),
         "indicators": _tracked(
             {
                 "type": ["array", "null"],
+                "maxItems": MAX_INDICATORS,
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
@@ -184,7 +229,8 @@ EXTRACTION_SCHEMA: dict[str, Any] = {
             "Technical indicators exactly as written, including defanged forms.",
         ),
         "techniques": _tracked(
-            {"type": ["array", "null"], "items": {"type": "string", "pattern": r"^T\d{4}(\.\d{3})?$"}},
+            {"type": ["array", "null"], "maxItems": MAX_TECHNIQUES,
+             "items": {"type": "string", "pattern": r"^T\d{4}(\.\d{3})?$"}},
             "MITRE ATT&CK technique IDs the narrative supports. Do not speculate.",
         ),
         "detected_at": _tracked(
@@ -222,6 +268,10 @@ class TrackedField:
     needs_attention: bool = False
     reason: str = ""
     edited: bool = False
+    #: Proposed values refused outright rather than flagged. Kept so the analyst can
+    #: see what was thrown away and disagree — a silent drop is as unreviewable as a
+    #: silent acceptance.
+    rejected: tuple = ()
 
     @property
     def present(self) -> bool:
@@ -232,6 +282,7 @@ class TrackedField:
         d = asdict(self)
         d["span"] = list(self.span) if self.span else None
         d["present"] = self.present
+        d["rejected"] = list(self.rejected)
         return d
 
 
@@ -288,6 +339,10 @@ class ExtractionDraft:
     analyst_notes: str | None = None
     raw_email: str | None = None
     method: str = ""
+    #: True when a language model proposed these fields. Model-proposed indicators
+    #: need positive sign-off before they can be tokenised; heuristic ones are cut
+    #: verbatim out of the narrative by a regex, so they are locatable by construction.
+    model_proposed: bool = False
     language: str = Language.ENGLISH.value
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -332,6 +387,17 @@ class ExtractionDraft:
         return [n for n, f in self.fields.items() if f.needs_attention]
 
     @property
+    def requires_indicator_confirmation(self) -> bool:
+        """
+        True when an analyst must positively sign off the indicator list.
+
+        Only for model-proposed drafts, and only when indicators were proposed. The
+        deterministic extractor takes indicators verbatim out of the narrative with a
+        regex, so there is nothing to confirm that the text does not already say.
+        """
+        return bool(self.model_proposed and (self.fields["indicators"].value or []))
+
+    @property
     def missing(self) -> list[str]:
         """Fields the narrative did not state. Omitted, never guessed."""
         return [n for n, f in self.fields.items() if not f.present]
@@ -348,6 +414,8 @@ class ExtractionDraft:
             "needs_attention": self.needs_attention,
             "missing": self.missing,
             "confidence_threshold": CONFIDENCE_THRESHOLD,
+            "model_proposed": self.model_proposed,
+            "requires_indicator_confirmation": self.requires_indicator_confirmation,
             "autonomy": Autonomy.PROPOSE_CONFIRM.value,
             "confirmed": False,
         }
@@ -377,6 +445,17 @@ class ExtractionDraft:
         unknown = set(edits) - set(EXTRACTED_FIELDS)
         if unknown:
             raise ValueError(f"cannot confirm unknown field(s): {sorted(unknown)}")
+
+        if self.requires_indicator_confirmation and "indicators" not in edits:
+            raise ValueError(
+                "model-proposed indicators require explicit confirmation. Pass "
+                "edits={'indicators': [...]} with the list the analyst actually "
+                "accepts — an empty list is a valid answer. Every other field a model "
+                "gets wrong is wrong inside one institution; an indicator becomes a "
+                "token in a matching space every other institution is compared "
+                "against, and nobody downstream can review it because they see only "
+                "the hash."
+            )
 
         def value_of(name: str):
             return edits[name] if name in edits else self.fields[name].value
@@ -455,6 +534,35 @@ def _locate(narrative: str, evidence: str | None) -> tuple[int, int] | None:
     return (at, at + len(evidence))
 
 
+def _locatable_indicators(value: Any, narrative: str) -> tuple[list, list]:
+    """
+    Split proposed indicators into those present verbatim in the narrative and those
+    that are not. The second list is dropped, not flagged.
+
+    Locatability is ADVISORY for every other field and a HARD GATE here, and the
+    asymmetry is deliberate. A fabricated severity is wrong inside one institution
+    and a human is going to look at it anyway. A fabricated indicator becomes a
+    TOKEN — a value in a matching space that every other institution's submissions
+    are compared against. It cannot be reviewed by anyone downstream, because
+    downstream sees only the hash. It either matches nothing, wasting the slot, or it
+    matches something by accident and manufactures a campaign that does not exist.
+
+    The first live run produced exactly this: on `07_webshell_exploit` the model
+    returned our own `UNTRUSTED_` fence marker as an indicator of type URL. Under the
+    old code that would have been canonicalised, tokenised and submitted.
+    """
+    kept: list = []
+    rejected: list = []
+    for item in value or []:
+        raw = str((item or {}).get("value", "")).strip() if isinstance(item, dict) else ""
+        if raw and _locate(narrative, raw) is not None:
+            kept.append(item)
+        else:
+            rejected.append(item)
+            log.warning("a2.indicator_rejected not_in_narrative value=%r", raw[:60])
+    return kept, rejected
+
+
 def _field(
     name: str, value: Any, confidence: float, narrative: str, evidence: str | None,
 ) -> TrackedField:
@@ -462,8 +570,29 @@ def _field(
     span = _locate(narrative, evidence)
     present = value is not None and value != []
 
+    rejected: tuple = ()
+    if name == "indicators" and value:
+        kept, dropped = _locatable_indicators(value, narrative)
+        rejected = tuple(dropped)
+        value = kept or None
+        present = value is not None
+
+    low, high = CONFIDENCE_RANGE
+    malformed_confidence = not (low <= confidence <= high)
+    if malformed_confidence:
+        # Not clamped. A confidence of 100.0 is a broken response, and clamping it to
+        # 1.0 would turn a malformed answer into a maximally trusted one.
+        log.warning("a2.malformed_confidence field=%s value=%r", name, confidence)
+
     needs, reason = False, ""
-    if not present:
+    if malformed_confidence:
+        needs = True
+        reason = (
+            f"Confidence {confidence!r} is outside {CONFIDENCE_RANGE} — the response is "
+            f"malformed, not merely uncertain. Treat this field as unverified."
+        )
+        confidence = 0.0
+    elif not present:
         needs, reason = True, "Not stated in the narrative — supply it or leave it out deliberately."
     elif confidence < CONFIDENCE_THRESHOLD:
         needs, reason = True, f"Confidence {confidence:.2f} is below {CONFIDENCE_THRESHOLD:.2f}."
@@ -472,9 +601,21 @@ def _field(
     elif name in ALWAYS_REVIEW:
         needs, reason = True, "Drives regulatory deadlines and the correlation band; always reviewed."
 
+    if rejected:
+        needs = True
+        dropped_values = ", ".join(
+            repr(str(item.get("value", ""))[:40]) for item in rejected if isinstance(item, dict)
+        )
+        reason = (
+            f"Dropped {len(rejected)} proposed indicator(s) not present in the narrative "
+            f"({dropped_values}). An indicator that was never written cannot become a "
+            f"token. " + reason
+        ).strip()
+
     return TrackedField(
         name=name, value=value, confidence=round(float(confidence), 2),
         evidence=evidence, span=span, needs_attention=needs, reason=reason,
+        rejected=rejected,
     )
 
 
@@ -1053,6 +1194,7 @@ class ExtractionAgent(Agent):
             analyst_notes=analyst_notes,
             raw_email=raw_email,
             method=self._extractor.name,
+            model_proposed=self._is_model,
             language=detect_language(narrative).value,
         )
         log.info(
@@ -1073,9 +1215,13 @@ class ExtractionAgent(Agent):
 
 __all__ = [
     "ALWAYS_REVIEW",
+    "CONFIDENCE_RANGE",
     "CONFIDENCE_THRESHOLD",
     "EXTRACTED_FIELDS",
     "EXTRACTION_SCHEMA",
+    "MAX_INDICATORS",
+    "MAX_LOCAL_LIST_ITEMS",
+    "MAX_TECHNIQUES",
     "ConfirmedIncident",
     "ExtractionAgent",
     "ExtractionDraft",

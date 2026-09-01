@@ -195,3 +195,73 @@ PROPOSE_CONFIRM gate is not ceremony, and any future multi-model benchmark now h
 measured floor to beat. Larger models, a schema with `maxItems`, and a held-out fixture
 set authored by someone else are the three things that would make the next run mean
 more than this one.
+
+---
+
+# Re-measurement, after the controls
+
+The first run justified four changes. They were applied and the same fixtures re-run
+against the same model, with no prompt or fixture edits and no tuning.
+
+## What moved, and what did not
+
+| | Before | After |
+|---|---|---|
+| English accuracy | 74/140 = 52.9% | **79/140 = 56.4%** (+3.6 pts) |
+| Arabic accuracy | 35/70 = 50.0% | **41/70 = 58.6%** (+8.6 pts) |
+| Errors / timeouts | 1 (`17_many_indicators`, 900s) | **0** |
+| Slowest extraction | 900.1s (killed) | **131.1s** |
+| Wall clock, 30 narratives | 34 min | **18 min** |
+
+**The accuracy delta is not attributable to the controls, and should not be read as
+one.** Decomposed:
+
+* English gained 5 fields. **3 of those are fixture 17 alone**, which previously
+  scored 0/7 because it timed out and now scores 3/7 because it completes. Outside
+  that fixture: 3 fields newly right, 1 newly wrong — net +2.
+* Arabic gained 6 fields, none of them from fixture 17 (it is English). All 6 are
+  changed answers.
+* **32 of 203 fields — 16% — produced a different value on the second run**, at
+  `temperature: 0`, on an identical prompt. Adding `maxItems` changes the grammar and
+  therefore the constrained-decoding path, so the two runs are not the same
+  experiment; and a 16% churn rate means a ±6 field swing is inside the noise floor
+  of a single 30-narrative run.
+
+So the honest statement is: **the controls did not measurably improve extraction
+accuracy, and were not intended to.** They are safety and availability controls. What
+they demonstrably fixed is what they targeted.
+
+## What the controls actually fixed
+
+**The hang is gone.** `17_many_indicators` went from 900 seconds and killed to 131.1
+seconds and correct-enough to score. `maxItems`, read off the contract rather than
+repeated, gives constrained decoding somewhere to stop. Total wall clock nearly
+halved as a side effect.
+
+**69 malformed confidences were caught in the second run** — out-of-range values that
+`strict: true` still lets through, that would previously have been compared against
+`CONFIDENCE_THRESHOLD` as though they meant something. They are now refused rather
+than clamped: a 100.0 clamped to 1.0 would become a maximally *trusted* answer.
+
+**Fabricated indicators are dropped rather than tokenised.** The gate fired in the
+re-run. This is the control with real downstream consequence: an indicator that was
+never written becomes a token in a matching space every other institution is compared
+against, reviewable by nobody because they see only the hash.
+
+**The timeout no longer fails a quarter of requests.** It is now
+`2 × 90.5s = 181s`, derived from the slowest extraction actually observed, rather than
+a round 45s that sat between the measured mean (40.1s) and p95 (53.5s) and failed 8 of
+30.
+
+## What still has not moved
+
+The model remains roughly half as accurate as the regex tables, and every reason from
+the first run stands: hallucinated ATT&CK IDs (techniques 4/20 EN, unchanged),
+paraphrased service names outside the canonical vocabulary (8/20 EN, unchanged),
+inflated severity (12/20 EN, unchanged). None of the controls address model judgement,
+which is where the losses are.
+
+The 16% run-to-run churn is itself a new finding, and a caution for any future
+multi-model benchmark: at this fixture count, a single run cannot resolve differences
+smaller than about ten points. Comparing models on 30 self-authored narratives, once
+each, would produce a ranking that is mostly noise.

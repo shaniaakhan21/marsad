@@ -359,3 +359,199 @@ def test_the_timestamp_exemption_did_not_disarm_the_leak_guard():
         LeaksAnotherDate(HmacTokeniser(KEY)).build_submission(
             other, institution_ref="psd_a0001", sector=Sector.BANK, size_band=SizeBand.LARGE
         )
+
+
+# ---------------------------------------------------------------- controls the live run justified
+
+
+def test_a_fabricated_indicator_cannot_reach_a3_however_confident():
+    """
+    THE control the first live model run justified.
+
+    Locatability is advisory for every other field and a HARD GATE here. A fabricated
+    severity is wrong inside one institution and a human looks at it anyway. A
+    fabricated indicator becomes a TOKEN — a value in a matching space every other
+    institution is compared against, which nobody downstream can review because they
+    see only the hash. It either matches nothing or manufactures a campaign.
+
+    Confidence is irrelevant to this gate. The model reported 1.0 on values it
+    invented, so trusting confidence here would trust exactly the wrong number.
+    """
+    from marsad_connector.agents.a2_extract import _field
+
+    narrative = "Phishing reported at 2026-08-19 08:00 UTC from real-domain.com. Severity: HIGH."
+    field = _field(
+        "indicators",
+        [
+            {"type": "DOMAIN", "value": "real-domain.com"},        # present
+            {"type": "IP", "value": "203.0.113.99"},               # invented
+            {"type": "URL", "value": "https://not-in-the-text.example"},  # invented
+        ],
+        1.0,                                                        # maximum confidence
+        narrative,
+        None,
+    )
+
+    assert field.value == [{"type": "DOMAIN", "value": "real-domain.com"}]
+    assert len(field.rejected) == 2
+    assert field.needs_attention
+    assert "not present in the narrative" in field.reason
+
+    for indicator in field.value:
+        assert indicator["value"] in narrative
+
+
+def test_the_untrusted_fence_marker_is_rejected_as_an_indicator():
+    """
+    Fixture 07, exactly as it failed live.
+
+    On `07_webshell_exploit` the model returned our own `UNTRUSTED_INCIDENT_TEXT`
+    fence — the delimiter the provider wraps hostile text in — as an indicator of type
+    URL. Under the previous code that would have been canonicalised, tokenised and
+    submitted: the connector would have published a token derived from its own prompt
+    scaffolding into a shared matching space.
+    """
+    import json
+
+    from marsad_connector.agents.a2_extract import _field
+    from marsad_connector.llm.provider import UNTRUSTED_CLOSE, UNTRUSTED_OPEN
+
+    fixture = json.loads(
+        (ROOT / "tests" / "fixtures" / "narratives" / "07_webshell_exploit.json")
+        .read_text(encoding="utf-8")
+    )
+    narrative = fixture["narrative"]
+    assert UNTRUSTED_OPEN not in narrative, "the fence is scaffolding, never the analyst's text"
+
+    field = _field(
+        "indicators",
+        [
+            {"type": "URL", "value": UNTRUSTED_OPEN},
+            {"type": "URL", "value": f"{UNTRUSTED_OPEN}\n{narrative}\n{UNTRUSTED_CLOSE}"},
+            {"type": "FILE_HASH", "value": fixture["expected"]["indicators"][0][1]},
+        ],
+        1.0, narrative, None,
+    )
+
+    kept = {i["value"] for i in field.value or []}
+    assert UNTRUSTED_OPEN not in kept
+    assert not any(UNTRUSTED_OPEN in value for value in kept)
+    assert fixture["expected"]["indicators"][0][1] in kept
+
+
+def test_model_proposed_indicators_need_explicit_confirmation(monkeypatch):
+    """
+    The second half of the gate. Locatable is not the same as correct — the model also
+    mistyped a wallet as a URL and a domain as an IP, and both of those ARE in the
+    narrative. So a human signs off the indicator list before it can be tokenised.
+
+    An empty list is a valid answer. Silence is not.
+    """
+    from marsad_connector.agents.a2_extract import ExtractionAgent, ModelExtractor
+
+    narrative = ("Phishing at 2026-08-19 08:00 UTC from evil-model.com. Severity: HIGH.")
+
+    class FakeProvider:
+        name = "fake"
+
+        async def extract(self, text, schema):
+            return {
+                "severity": {"value": "HIGH", "confidence": 0.9, "evidence": "Severity: HIGH"},
+                "category": {"value": "PHISHING", "confidence": 0.9, "evidence": "Phishing"},
+                "affected_services": {"value": None, "confidence": 0.0, "evidence": None},
+                "third_party_dependencies": {"value": None, "confidence": 0.0, "evidence": None},
+                "indicators": {"value": [{"type": "DOMAIN", "value": "evil-model.com"}],
+                               "confidence": 1.0, "evidence": "evil-model.com"},
+                "techniques": {"value": None, "confidence": 0.0, "evidence": None},
+                "detected_at": {"value": "2026-08-19T08:00:00+00:00", "confidence": 0.9,
+                                "evidence": "2026-08-19 08:00 UTC"},
+            }
+
+    agent = ExtractionAgent()
+    agent._extractor = ModelExtractor(FakeProvider())
+    agent._is_model = True
+
+    draft = asyncio.run(agent.propose(narrative))
+    assert draft.model_proposed
+    assert draft.requires_indicator_confirmation
+
+    with pytest.raises(ValueError, match="explicit confirmation"):
+        draft.confirm(analyst="a.karim")
+
+    accepted = draft.confirm(
+        analyst="a.karim", edits={"indicators": [{"type": "DOMAIN", "value": "evil-model.com"}]}
+    )
+    assert accepted.indicators == [{"type": "DOMAIN", "value": "evil-model.com"}]
+
+    declined = draft.confirm(analyst="a.karim", edits={"indicators": []})
+    assert declined.indicators == []
+
+
+def test_the_heuristic_path_needs_no_indicator_confirmation():
+    """
+    The gate is friction aimed at model output, not at the analyst. The deterministic
+    extractor cuts indicators verbatim out of the narrative with a regex, so they are
+    locatable by construction and there is nothing to confirm the text does not say.
+    """
+    draft = propose(CLEAN)
+    assert not draft.model_proposed
+    assert not draft.requires_indicator_confirmation
+    confirmed = draft.confirm(analyst="a.karim")
+    assert len(confirmed.indicators) == 2
+
+
+def test_array_bounds_are_read_from_the_contract_not_repeated():
+    """
+    A denial-of-service control, not tidying: `17_many_indicators` generated for 900
+    seconds under constrained decoding because the array had nowhere to stop.
+
+    The bound is read off the contract rather than written twice, so the schema cannot
+    permit more than the payload can carry.
+    """
+    import annotated_types
+    from marsad_connector.agents.a2_extract import (
+        MAX_INDICATORS,
+        MAX_LOCAL_LIST_ITEMS,
+        MAX_TECHNIQUES,
+    )
+    from marsad_contracts.boundary import IncidentSubmission
+
+    def contract_cap(field_name: str) -> int:
+        field = IncidentSubmission.model_fields[field_name]
+        return next(m.max_length for m in field.metadata
+                    if isinstance(m, annotated_types.MaxLen))
+
+    assert MAX_INDICATORS == contract_cap("tokens")
+    assert MAX_TECHNIQUES == contract_cap("technique_set")
+
+    properties = EXTRACTION_SCHEMA["properties"]
+    assert properties["indicators"]["properties"]["value"]["maxItems"] == contract_cap("tokens")
+    assert properties["techniques"]["properties"]["value"]["maxItems"] == contract_cap("technique_set")
+    for local in ("affected_services", "third_party_dependencies"):
+        assert properties[local]["properties"]["value"]["maxItems"] == MAX_LOCAL_LIST_ITEMS
+
+    for name, spec in properties.items():
+        value = spec["properties"]["value"]
+        if "array" in str(value.get("type")):
+            assert value.get("maxItems"), f"{name} is unbounded — that is a hang, not untidiness"
+
+
+def test_an_out_of_range_confidence_is_malformed_not_low():
+    """
+    `strict: true` declares `minimum: 0, maximum: 1` and does not enforce it: 95 of 203
+    values in the first live run fell outside the range, the largest being 100.0.
+
+    Such a value is refused, not clamped. Clamping 100.0 to 1.0 would turn a broken
+    response into a maximally trusted one.
+    """
+    from marsad_connector.agents.a2_extract import CONFIDENCE_RANGE, _field
+
+    for bad in (100.0, 1.5, -0.5, 42):
+        field = _field("severity", "HIGH", bad, "Severity: HIGH", "Severity: HIGH")
+        assert field.confidence == 0.0, f"{bad} was not refused"
+        assert field.needs_attention
+        assert "malformed" in field.reason
+
+    good = _field("severity", "HIGH", 0.9, "Severity: HIGH", "Severity: HIGH")
+    assert good.confidence == 0.9
+    assert CONFIDENCE_RANGE == (0.0, 1.0)

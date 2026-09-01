@@ -485,10 +485,17 @@ extractor. The LLM path had never been executed. It has now:
 Ollama 0.33.0, `qwen2.5:3b-instruct` (Q4_K_M, 1.93GB), the connector's own prompt and
 schema, the existing fixtures, nothing tuned.
 
-| Set | Deterministic | Model |
-|---|---|---|
-| English | 138/140 = **98.6%** | 74/140 = **52.9%** |
-| Arabic | 70/70 = **100.0%** | 35/70 = **50.0%** |
+| Set | Deterministic | Model (first run) | Model (after controls) |
+|---|---|---|---|
+| English | 138/140 = **98.6%** | 74/140 = 52.9% | 79/140 = **56.4%** |
+| Arabic | 70/70 = **100.0%** | 35/70 = 50.0% | 41/70 = **58.6%** |
+
+The controls added after the first run — bounded arrays, client-side confidence
+validation, a measurement-derived timeout, and a hard locatability gate on indicators
+— fixed a 900-second hang, caught 69 out-of-range confidences and stopped fabricated
+indicators being tokenised. They did **not** measurably improve accuracy, and were not
+meant to: 16% of fields produce a different value between runs at `temperature: 0`, so
+the small delta above is inside the noise.
 
 Across 210 field comparisons the model was right where the deterministic extractor was
 wrong **zero times**. It hallucinates well-formed ATT&CK IDs that are unrelated to the

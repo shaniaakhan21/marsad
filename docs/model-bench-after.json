@@ -1,0 +1,3613 @@
+{
+  "model": "qwen2.5:3b-instruct",
+  "base_url": "http://localhost:11434/v1",
+  "compat_note": "Ollama 0.33.0 compiles response_format json_schema into a GBNF grammar and rejects the \\d shorthand: '^T\\d{4}(\\.\\d{3})?$' fails with 'failed to parse grammar', '^T[0-9]{4}(\\.[0-9]{3})?$' compiles. The production schema is NOT changed; this transform is applied only to make the path executable, and it is semantically identical for ASCII technique IDs.",
+  "timeout_note": "Connector REQUEST_TIMEOUT_SECONDS is 45s. A single extraction with the full schema took ~50s on this hardware, so the benchmark raised it to 900s. On this machine the production timeout would fail every request.",
+  "results": [
+    {
+      "id": "01_clean_phishing",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "PHISHING",
+        "affected_services": [
+          "online banking"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "URL",
+            "https://sso-almaha-verify.com/portal"
+          ],
+          [
+            "IP",
+            "185.220.101[.]44"
+          ]
+        ],
+        "techniques": [
+          "T1566.002"
+        ],
+        "detected_at": "2026-08-19T08:00:00+00:00"
+      },
+      "seconds": 42.8,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 100,
+          "evidence": "Credential harvesting email impersonating the internal SSO portal leading to user credential submission and service disruption"
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 100,
+          "evidence": "Email impersonating the internal SSO portal"
+        },
+        "affected_services": {
+          "value": [
+            "Online Banking"
+          ],
+          "confidence": 100,
+          "evidence": "Online banking service was unavailable for 40 minutes"
+        },
+        "third_party_dependencies": {
+          "value": [
+            "https://sso-almaha-verify.com/portal"
+          ],
+          "confidence": 100,
+          "evidence": "Email directed users to a third-party portal hosted on 185.220.101[.]44"
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "No direct indicators provided in the text"
+        },
+        "techniques": {
+          "value": [
+            "T1021.002",
+            "T1021.003"
+          ],
+          "confidence": 75,
+          "evidence": "Email impersonation and credential harvesting"
+        },
+        "detected_at": {
+          "value": "2026-08-19T08:00:00Z",
+          "confidence": 100,
+          "evidence": "Time mentioned in the text"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 0.0,
+          "evidence": "Credential harvesting email impersonating the internal SSO portal leading to user credential submission and service disruption",
+          "span_found": false
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 0.0,
+          "evidence": "Email impersonating the internal SSO portal",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "Online Banking"
+          ],
+          "confidence": 0.0,
+          "evidence": "Online banking service was unavailable for 40 minutes",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [
+            "https://sso-almaha-verify.com/portal"
+          ],
+          "confidence": 0.0,
+          "evidence": "Email directed users to a third-party portal hosted on 185.220.101[.]44",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No direct indicators provided in the text",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1021.002",
+            "T1021.003"
+          ],
+          "confidence": 0.0,
+          "evidence": "Email impersonation and credential harvesting",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-08-19T08:00:00Z",
+          "confidence": 0.0,
+          "evidence": "Time mentioned in the text",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "02_ransomware_critical",
+      "language": "en",
+      "expected": {
+        "severity": "CRITICAL",
+        "category": "RANSOMWARE",
+        "affected_services": [
+          "core banking"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "WALLET",
+            "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+          ]
+        ],
+        "techniques": [
+          "T1486"
+        ],
+        "detected_at": "2026-03-04T02:15:00+00:00"
+      },
+      "seconds": 42.0,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "Trading was halted for the morning session. The ransom note pointed to bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq. Our core banking platform stayed up."
+        },
+        "category": {
+          "value": "RANSOMWARE",
+          "confidence": 1.0,
+          "evidence": "Ransomware encrypted the file shares on 2026-03-04 02:15 UTC."
+        },
+        "affected_services": {
+          "value": [
+            "CORE_BANKING"
+          ],
+          "confidence": 1.0,
+          "evidence": "Our core banking platform stayed up."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "URL",
+              "value": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "The ransom note pointed to bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq."
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "detected_at": {
+          "value": "2026-03-04T02:15:00Z",
+          "confidence": 1.0,
+          "evidence": "Ransomware encrypted the file shares on 2026-03-04 02:15 UTC."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "Trading was halted for the morning session. The ransom note pointed to bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq. Our core banking platform stayed up.",
+          "span_found": true
+        },
+        "category": {
+          "value": "RANSOMWARE",
+          "confidence": 1.0,
+          "evidence": "Ransomware encrypted the file shares on 2026-03-04 02:15 UTC.",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "CORE_BANKING"
+          ],
+          "confidence": 1.0,
+          "evidence": "Our core banking platform stayed up.",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "URL",
+              "value": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "The ransom note pointed to bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq.",
+          "span_found": true
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-03-04T02:15:00Z",
+          "confidence": 1.0,
+          "evidence": "Ransomware encrypted the file shares on 2026-03-04 02:15 UTC.",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "03_ddos_trading",
+      "language": "en",
+      "expected": {
+        "severity": "MEDIUM",
+        "category": "DENIAL_OF_SERVICE",
+        "affected_services": [
+          "trading platform"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "IP",
+            "91.219.238.12"
+          ]
+        ],
+        "techniques": [
+          "T1498"
+        ],
+        "detected_at": "2026-05-11T09:30:00+00:00"
+      },
+      "seconds": 34.5,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 100,
+          "evidence": "Volumetric DDoS hit the trading platform saturating the link for 25 minutes"
+        },
+        "category": {
+          "value": "DENIAL_OF_SERVICE",
+          "confidence": 100,
+          "evidence": "Volumetric DDoS"
+        },
+        "affected_services": {
+          "value": [
+            "trading platform"
+          ],
+          "confidence": 100,
+          "evidence": "A volumetric DDoS hit the trading platform"
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "No third-party dependencies mentioned"
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "91.219.238.12"
+            }
+          ],
+          "confidence": 100,
+          "evidence": "Source traffic came largely from 91.219.238.12"
+        },
+        "techniques": {
+          "value": [
+            "T1133",
+            "T1044"
+          ],
+          "confidence": 75,
+          "evidence": "Volumetric DDoS attack"
+        },
+        "detected_at": {
+          "value": "2026-05-11T09:30:00Z",
+          "confidence": 100,
+          "evidence": "A volumetric DDoS hit the trading platform on 2026-05-11 at 09:30"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 0.0,
+          "evidence": "Volumetric DDoS hit the trading platform saturating the link for 25 minutes",
+          "span_found": false
+        },
+        "category": {
+          "value": "DENIAL_OF_SERVICE",
+          "confidence": 0.0,
+          "evidence": "Volumetric DDoS",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "trading platform"
+          ],
+          "confidence": 0.0,
+          "evidence": "A volumetric DDoS hit the trading platform",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No third-party dependencies mentioned",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "91.219.238.12"
+            }
+          ],
+          "confidence": 0.0,
+          "evidence": "Source traffic came largely from 91.219.238.12",
+          "span_found": true
+        },
+        "techniques": {
+          "value": [
+            "T1133",
+            "T1044"
+          ],
+          "confidence": 0.0,
+          "evidence": "Volumetric DDoS attack",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-05-11T09:30:00Z",
+          "confidence": 0.0,
+          "evidence": "A volumetric DDoS hit the trading platform on 2026-05-11 at 09:30",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "04_vendor_breach",
+      "language": "en",
+      "expected": {
+        "severity": null,
+        "category": "THIRD_PARTY_COMPROMISE",
+        "affected_services": [
+          "kyc service"
+        ],
+        "third_party_dependencies": [
+          "Nexa KYC"
+        ],
+        "indicators": null,
+        "techniques": null,
+        "detected_at": "2026-02-20T11:00:00+00:00"
+      },
+      "seconds": 27.9,
+      "raw": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen."
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen."
+        },
+        "affected_services": {
+          "value": [
+            "KYC"
+          ],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen."
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Nexa KYC"
+          ],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen."
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen."
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen."
+        },
+        "detected_at": {
+          "value": "2026-02-20T11:00:00Z",
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen.",
+          "span_found": true
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen.",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "KYC"
+          ],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen.",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Nexa KYC"
+          ],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen.",
+          "span_found": true
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen.",
+          "span_found": true
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen.",
+          "span_found": true
+        },
+        "detected_at": {
+          "value": "2026-02-20T11:00:00Z",
+          "confidence": 1.0,
+          "evidence": "No credentials of ours were stolen.",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "05_bec_invoice",
+      "language": "en",
+      "expected": {
+        "severity": "CRITICAL",
+        "category": "BUSINESS_EMAIL_COMPROMISE",
+        "affected_services": [
+          "payment gateway"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "ACCOUNT",
+            "88123456"
+          ]
+        ],
+        "techniques": [
+          "T1114",
+          "T1656"
+        ],
+        "detected_at": "2026-06-02T14:20:00+00:00"
+      },
+      "seconds": 40.1,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 100,
+          "evidence": "AED 1.2m of funds were transferred before the payment gateway was frozen."
+        },
+        "category": {
+          "value": "BUSINESS_EMAIL_COMPROMISE",
+          "confidence": 100,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC."
+        },
+        "affected_services": {
+          "value": [
+            "PAYMENT_GATEWAY"
+          ],
+          "confidence": 100,
+          "evidence": "Mailbox forwarding rules had been created on the finance mailbox."
+        },
+        "third_party_dependencies": {
+          "value": [
+            "SUPPLIER"
+          ],
+          "confidence": 100,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC."
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [
+            "T1078.001",
+            "T1078.002"
+          ],
+          "confidence": 100,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC."
+        },
+        "detected_at": {
+          "value": "2026-06-02T14:20:00Z",
+          "confidence": 100,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 0.0,
+          "evidence": "AED 1.2m of funds were transferred before the payment gateway was frozen.",
+          "span_found": true
+        },
+        "category": {
+          "value": "BUSINESS_EMAIL_COMPROMISE",
+          "confidence": 0.0,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC.",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "PAYMENT_GATEWAY"
+          ],
+          "confidence": 0.0,
+          "evidence": "Mailbox forwarding rules had been created on the finance mailbox.",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [
+            "SUPPLIER"
+          ],
+          "confidence": 0.0,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC.",
+          "span_found": true
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1078.001",
+            "T1078.002"
+          ],
+          "confidence": 0.0,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC.",
+          "span_found": true
+        },
+        "detected_at": {
+          "value": "2026-06-02T14:20:00Z",
+          "confidence": 0.0,
+          "evidence": "a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC.",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "06_insider",
+      "language": "en",
+      "expected": {
+        "severity": "LOW",
+        "category": "INSIDER",
+        "affected_services": [
+          "custody platform"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": null,
+        "detected_at": "2026-04-09T17:45:00+00:00"
+      },
+      "seconds": 28.4,
+      "raw": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform. Contained immediately; low impact confirmed after review."
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform."
+        },
+        "affected_services": {
+          "value": [
+            "custody platform"
+          ],
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [
+            "T1566.001"
+          ],
+          "confidence": 0.75,
+          "evidence": "The text does not provide enough context to definitively identify a specific technique."
+        },
+        "detected_at": {
+          "value": "2026-04-09T17:45:00Z",
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform. Contained immediately; low impact confirmed after review."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform. Contained immediately; low impact confirmed after review.",
+          "span_found": true
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform.",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "custody platform"
+          ],
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform.",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1566.001"
+          ],
+          "confidence": 0.75,
+          "evidence": "The text does not provide enough context to definitively identify a specific technique.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-04-09T17:45:00Z",
+          "confidence": 1.0,
+          "evidence": "Data was copied from the custody platform. Contained immediately; low impact confirmed after review.",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "07_webshell_exploit",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "VULNERABILITY_EXPLOITATION",
+        "affected_services": [
+          "client portal",
+          "vpn"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "FILE_HASH",
+            "9f2c4a1be7d305f6a8c9e0d1b2a3f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5"
+          ]
+        ],
+        "techniques": [
+          "T1190",
+          "T1505.003"
+        ],
+        "detected_at": "2026-07-15T03:05:00+00:00"
+      },
+      "seconds": 37.8,
+      "raw": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "Major outage of the client portal followed."
+        },
+        "category": {
+          "value": "CREDENTIAL_COMPROMISE",
+          "confidence": 1.0,
+          "evidence": "Attackers exploited CVE-2026-1337 on the internet-facing VPN appliance."
+        },
+        "affected_services": {
+          "value": [
+            "Client Portal"
+          ],
+          "confidence": 1.0,
+          "evidence": "Major outage of the client portal followed."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "FILE_HASH",
+              "value": "9f2c4a1be7d305f6a8c9e0d1b2a3f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [
+            "T1055.001",
+            "T1055.002"
+          ],
+          "confidence": 0.8,
+          "evidence": "Attackers exploited CVE-2026-1337 on the internet-facing VPN appliance."
+        },
+        "detected_at": {
+          "value": "2026-07-15T03:05:00Z",
+          "confidence": 1.0,
+          "evidence": ""
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "Major outage of the client portal followed.",
+          "span_found": true
+        },
+        "category": {
+          "value": "CREDENTIAL_COMPROMISE",
+          "confidence": 1.0,
+          "evidence": "Attackers exploited CVE-2026-1337 on the internet-facing VPN appliance.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Client Portal"
+          ],
+          "confidence": 1.0,
+          "evidence": "Major outage of the client portal followed.",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "FILE_HASH",
+              "value": "9f2c4a1be7d305f6a8c9e0d1b2a3f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1055.001",
+            "T1055.002"
+          ],
+          "confidence": 0.8,
+          "evidence": "Attackers exploited CVE-2026-1337 on the internet-facing VPN appliance.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-07-15T03:05:00Z",
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "08_password_spray",
+      "language": "en",
+      "expected": {
+        "severity": "MEDIUM",
+        "category": "CREDENTIAL_COMPROMISE",
+        "affected_services": [
+          "client portal"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "DOMAIN",
+            "evil-login[.]xyz"
+          ]
+        ],
+        "techniques": [
+          "T1078",
+          "T1110"
+        ],
+        "detected_at": "2026-01-30T22:00:00+00:00"
+      },
+      "seconds": 32.7,
+      "raw": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 1.0,
+          "evidence": "Three accounts were compromised and used with legitimate credentials to read mail."
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal"
+        },
+        "affected_services": {
+          "value": [
+            "CLIENT_PORTAL"
+          ],
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal"
+        },
+        "third_party_dependencies": {
+          "value": [
+            "evil-login[.]xyz"
+          ],
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal from evil-login[.]xyz"
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [
+            "T1078.001"
+          ],
+          "confidence": 1.0,
+          "evidence": "Password spraying"
+        },
+        "detected_at": {
+          "value": "2026-01-30T22:00:00Z",
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal began 2026-01-30 22:00 UTC"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 1.0,
+          "evidence": "Three accounts were compromised and used with legitimate credentials to read mail.",
+          "span_found": true
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "CLIENT_PORTAL"
+          ],
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [
+            "evil-login[.]xyz"
+          ],
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal from evil-login[.]xyz",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1078.001"
+          ],
+          "confidence": 1.0,
+          "evidence": "Password spraying",
+          "span_found": true
+        },
+        "detected_at": {
+          "value": "2026-01-30T22:00:00Z",
+          "confidence": 1.0,
+          "evidence": "Password spraying against the client portal began 2026-01-30 22:00 UTC",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "09_malware_implant",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "MALWARE",
+        "affected_services": [
+          "treasury system"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "IP",
+            "45.83.220.9"
+          ]
+        ],
+        "techniques": [
+          "T1567"
+        ],
+        "detected_at": "2026-09-01T06:30:00+00:00"
+      },
+      "seconds": 49.1,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 100,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket."
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 100,
+          "evidence": "Malware implant found on a treasury system workstation."
+        },
+        "affected_services": {
+          "value": [
+            "CLOUD_STORAGE"
+          ],
+          "confidence": 100,
+          "evidence": "Data exfiltration to an external cloud storage bucket."
+        },
+        "third_party_dependencies": {
+          "value": [
+            "CLOUD_STORAGE_SERVICE"
+          ],
+          "confidence": 100,
+          "evidence": "Data exfiltration to an external cloud storage bucket."
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "45.83.220.9"
+            },
+            {
+              "type": "URL",
+              "value": "https://www.cloudstorage.com"
+            }
+          ],
+          "confidence": 100,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket."
+        },
+        "techniques": {
+          "value": [
+            "T1089",
+            "T1020"
+          ],
+          "confidence": 100,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket."
+        },
+        "detected_at": {
+          "value": "2026-09-01T06:30:00Z",
+          "confidence": 100,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 0.0,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket.",
+          "span_found": false
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 0.0,
+          "evidence": "Malware implant found on a treasury system workstation.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "CLOUD_STORAGE"
+          ],
+          "confidence": 0.0,
+          "evidence": "Data exfiltration to an external cloud storage bucket.",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "CLOUD_STORAGE_SERVICE"
+          ],
+          "confidence": 0.0,
+          "evidence": "Data exfiltration to an external cloud storage bucket.",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "45.83.220.9"
+            }
+          ],
+          "confidence": 0.0,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1089",
+            "T1020"
+          ],
+          "confidence": 0.0,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-09-01T06:30:00Z",
+          "confidence": 0.0,
+          "evidence": "Malware implant found on a treasury system workstation, beaconing to an external IP address and data exfiltration to an external cloud storage bucket.",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "10_almost_nothing",
+      "language": "en",
+      "expected": {
+        "severity": null,
+        "category": null,
+        "affected_services": [
+          "email service"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": null,
+        "detected_at": null
+      },
+      "seconds": 19.6,
+      "raw": {
+        "severity": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null
+        },
+        "category": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null
+        },
+        "affected_services": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null
+        },
+        "third_party_dependencies": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null
+        },
+        "indicators": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null
+        },
+        "techniques": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null
+        },
+        "detected_at": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null,
+          "span_found": false
+        },
+        "category": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null,
+          "span_found": false
+        },
+        "affected_services": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null,
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null,
+          "span_found": false
+        },
+        "indicators": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null,
+          "span_found": false
+        },
+        "techniques": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null,
+          "span_found": false
+        },
+        "detected_at": {
+          "value": null,
+          "confidence": 0.0,
+          "evidence": null,
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "11_typos_chat",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "PHISHING",
+        "affected_services": [
+          "mobile app"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "DOMAIN",
+            "bad-domain[.]top"
+          ]
+        ],
+        "techniques": [
+          "T1566.002"
+        ],
+        "detected_at": null
+      },
+      "seconds": 35.5,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "Credentials were harvested from a phishing attack involving a link clicked by users and the mobile app seems fine."
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "The incident text mentions a phishing wave and a link that was clicked."
+        },
+        "affected_services": {
+          "value": [
+            "CIS Internal Systems"
+          ],
+          "confidence": 1.0,
+          "evidence": "The text does not specify which services were affected, but it mentions a phishing attack on internal systems."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "The text does not mention any third-party dependencies."
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "The text does not provide any specific indicators of compromise."
+        },
+        "techniques": {
+          "value": [
+            "T1078.001",
+            "T1078.002"
+          ],
+          "confidence": 1.0,
+          "evidence": "The text mentions a phishing attack, which is associated with T1078.001 and T1078.002."
+        },
+        "detected_at": {
+          "value": "2023-04-05T10:00:00Z",
+          "confidence": 1.0,
+          "evidence": "The text does not provide a specific date, but it is assumed to be the time of the incident based on the context."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "Credentials were harvested from a phishing attack involving a link clicked by users and the mobile app seems fine.",
+          "span_found": false
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "The incident text mentions a phishing wave and a link that was clicked.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "CIS Internal Systems"
+          ],
+          "confidence": 1.0,
+          "evidence": "The text does not specify which services were affected, but it mentions a phishing attack on internal systems.",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "The text does not mention any third-party dependencies.",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "The text does not provide any specific indicators of compromise.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1078.001",
+            "T1078.002"
+          ],
+          "confidence": 1.0,
+          "evidence": "The text mentions a phishing attack, which is associated with T1078.001 and T1078.002.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2023-04-05T10:00:00Z",
+          "confidence": 1.0,
+          "evidence": "The text does not provide a specific date, but it is assumed to be the time of the incident based on the context.",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "12_all_caps",
+      "language": "en",
+      "expected": {
+        "severity": "CRITICAL",
+        "category": "RANSOMWARE",
+        "affected_services": [
+          "settlement system"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": [
+          "T1486"
+        ],
+        "detected_at": "2026-08-02T04:00:00+00:00"
+      },
+      "seconds": 34.5,
+      "raw": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC. FUNDS WERE TRANSFERRED OUT BEFORE WE STOPPED IT."
+        },
+        "category": {
+          "value": "RANSOMWARE",
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC."
+        },
+        "affected_services": {
+          "value": [
+            "SETTLEMENT SYSTEM"
+          ],
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "detected_at": {
+          "value": "2026-08-02T04:00:00Z",
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC. FUNDS WERE TRANSFERRED OUT BEFORE WE STOPPED IT.",
+          "span_found": true
+        },
+        "category": {
+          "value": "RANSOMWARE",
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC.",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "SETTLEMENT SYSTEM"
+          ],
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC.",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-08-02T04:00:00Z",
+          "confidence": 1.0,
+          "evidence": "RANSOMWARE ON THE SETTLEMENT SYSTEM DETECTED 2026-08-02 04:00 UTC.",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "13_ticket_paste",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "FRAUD",
+        "affected_services": [
+          "card processing"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "IBAN",
+            "AE07 0331 2345 6789 0123 456"
+          ]
+        ],
+        "techniques": null,
+        "detected_at": "2026-05-22T13:00:00+00:00"
+      },
+      "seconds": 30.5,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "fraudulent transactions totalling AED 340,000"
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "unauthorised payments detected on the card processing platform"
+        },
+        "affected_services": {
+          "value": [
+            "card processing platform"
+          ],
+          "confidence": 1.0,
+          "evidence": "unauthorised payments detected on the card processing platform"
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "detected_at": {
+          "value": "2026-05-22T13:00:00Z",
+          "confidence": 1.0,
+          "evidence": "Opened: 2026-05-22 13:00 UTC"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "fraudulent transactions totalling AED 340,000",
+          "span_found": true
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "unauthorised payments detected on the card processing platform",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "card processing platform"
+          ],
+          "confidence": 1.0,
+          "evidence": "unauthorised payments detected on the card processing platform",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-05-22T13:00:00Z",
+          "confidence": 1.0,
+          "evidence": "Opened: 2026-05-22 13:00 UTC",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "14_run_on",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "PHISHING",
+        "affected_services": [
+          "internet banking"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "DOMAIN",
+            "secure-almaha-login[.]com"
+          ]
+        ],
+        "techniques": [
+          "T1566.002"
+        ],
+        "detected_at": "2026-10-03T07:15:00+00:00"
+      },
+      "seconds": 29.2,
+      "raw": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "The internet banking service went down for a bit major issue for us"
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "we noticed a lookalike portal at secure-almaha-login[.]com people were entering credentials there and it was a phishing page"
+        },
+        "affected_services": {
+          "value": [
+            "Internet Banking"
+          ],
+          "confidence": 1.0,
+          "evidence": "the internet banking service went down for a bit major issue for us"
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [
+            "T1078.001"
+          ],
+          "confidence": 0.9,
+          "evidence": "lookalike portal at secure-almaha-login[.]com"
+        },
+        "detected_at": {
+          "value": "2026-10-03T07:15:00Z",
+          "confidence": 1.0,
+          "evidence": "so basically on 2026-10-03 07:15 UTC we noticed a lookalike portal at secure-almaha-login[.]com people were entering credentials there and it was a phishing page and the internet banking service went down for a bit major issue for us"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "The internet banking service went down for a bit major issue for us",
+          "span_found": true
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "we noticed a lookalike portal at secure-almaha-login[.]com people were entering credentials there and it was a phishing page",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "Internet Banking"
+          ],
+          "confidence": 1.0,
+          "evidence": "the internet banking service went down for a bit major issue for us",
+          "span_found": true
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1078.001"
+          ],
+          "confidence": 0.9,
+          "evidence": "lookalike portal at secure-almaha-login[.]com",
+          "span_found": true
+        },
+        "detected_at": {
+          "value": "2026-10-03T07:15:00Z",
+          "confidence": 1.0,
+          "evidence": "so basically on 2026-10-03 07:15 UTC we noticed a lookalike portal at secure-almaha-login[.]com people were entering credentials there and it was a phishing page and the internet banking service went down for a bit major issue for us",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "15_bullets",
+      "language": "en",
+      "expected": {
+        "severity": "MEDIUM",
+        "category": "DENIAL_OF_SERVICE",
+        "affected_services": [
+          "market data feed"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "IP",
+            "203.0.113.44"
+          ]
+        ],
+        "techniques": [
+          "T1498"
+        ],
+        "detected_at": "2026-11-19T10:00:00+00:00"
+      },
+      "seconds": 25.4,
+      "raw": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 100,
+          "evidence": "no data lost, contained quickly"
+        },
+        "category": {
+          "value": "DENIAL_OF_SERVICE",
+          "confidence": 100,
+          "evidence": "DDoS against the market data feed"
+        },
+        "affected_services": {
+          "value": [
+            "Market Data Feed"
+          ],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "203.0.113.44"
+            }
+          ],
+          "confidence": 100,
+          "evidence": "source 203.0.113.44"
+        },
+        "techniques": {
+          "value": [
+            "T1158.001"
+          ],
+          "confidence": 90,
+          "evidence": ""
+        },
+        "detected_at": {
+          "value": "2026-11-19T10:00:00Z",
+          "confidence": 100,
+          "evidence": "started 2026-11-19 10:00 UTC"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 0.0,
+          "evidence": "no data lost, contained quickly",
+          "span_found": true
+        },
+        "category": {
+          "value": "DENIAL_OF_SERVICE",
+          "confidence": 0.0,
+          "evidence": "DDoS against the market data feed",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "Market Data Feed"
+          ],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "203.0.113.44"
+            }
+          ],
+          "confidence": 0.0,
+          "evidence": "source 203.0.113.44",
+          "span_found": true
+        },
+        "techniques": {
+          "value": [
+            "T1158.001"
+          ],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-11-19T10:00:00Z",
+          "confidence": 0.0,
+          "evidence": "started 2026-11-19 10:00 UTC",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "16_relative_time_only",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "PHISHING",
+        "affected_services": [
+          "trading terminal"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": [
+          "T1566"
+        ],
+        "detected_at": null
+      },
+      "seconds": 19.2,
+      "raw": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 100,
+          "evidence": "The trading terminal itself was not affected."
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 100,
+          "evidence": ""
+        },
+        "affected_services": {
+          "value": [
+            "Email"
+          ],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [
+            "T1059.001"
+          ],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "detected_at": {
+          "value": "2023-04-06T12:00:00Z",
+          "confidence": 100,
+          "evidence": ""
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 0.0,
+          "evidence": "The trading terminal itself was not affected.",
+          "span_found": true
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Email"
+          ],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1059.001"
+          ],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2023-04-06T12:00:00Z",
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "17_many_indicators",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "MALWARE",
+        "affected_services": null,
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "IP",
+            "198.51.100.7"
+          ],
+          [
+            "DOMAIN",
+            "malicious-cdn[.]ru"
+          ],
+          [
+            "URL",
+            "https://malicious-cdn.ru/payload.bin"
+          ],
+          [
+            "FILE_HASH",
+            "d41d8cd98f00b204e9800998ecf8427e"
+          ],
+          [
+            "WALLET",
+            "0x52908400098527886E0F7030069857D2E4169EE7"
+          ],
+          [
+            "IBAN",
+            "GB29 NWBK 6016 1331 9268 19"
+          ]
+        ],
+        "techniques": null,
+        "detected_at": "2026-12-01T09:00:00+00:00"
+      },
+      "seconds": 131.1,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "Incident detected 2026-12-01 09:00 UTC. Observed: 198.51.100.7, malicious-cdn[.]ru, https://malicious-cdn.ru/payload.bin, file hash d41d8cd98f00b204e9800998ecf8427e, wallet 0x52908400098527886E0F7030069857D2E4169EE7, and beneficiary IBAN GB29 NWBK 6016 1331 9268 19. Malware confirmed."
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 1.0,
+          "evidence": "Malware confirmed."
+        },
+        "affected_services": {
+          "value": [
+            "UNTRUSTED"
+          ],
+          "confidence": 1.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT"
+        },
+        "third_party_dependencies": {
+          "value": [
+            "UNTRUSTED"
+          ],
+          "confidence": 1.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT"
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "198.51.100.7"
+            },
+            {
+              "type": "URL",
+              "value": "https://malicious-cdn.ru/payload.bin"
+            },
+            {
+              "type": "FILE_HASH",
+              "value": "d41d8cd98f00b204e9800998ecf8427e"
+            },
+            {
+              "type": "WALLET",
+              "value": "0x52908400098527886E0F7030069857D2E4169EE7"
+            },
+            {
+              "type": "IBAN",
+              "value": "GB29 NWBK 6016 1331 9268 19"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT"
+        },
+        "techniques": {
+          "value": [
+            "T1059.003",
+            "T1059.004",
+            "T1059.005",
+            "T1059.006",
+            "T1059.007",
+            "T1059.008",
+            "T1059.009",
+            "T1059.010",
+            "T1059.011",
+            "T1059.012",
+            "T1059.013",
+            "T1059.014",
+            "T1059.015",
+            "T1059.016",
+            "T1059.017",
+            "T1059.018",
+            "T1059.019",
+            "T1059.020",
+            "T1059.021",
+            "T1059.022",
+            "T1059.023",
+            "T1059.024",
+            "T1059.025",
+            "T1059.026",
+            "T1059.027",
+            "T1059.028",
+            "T1059.029",
+            "T1059.030",
+            "T1059.031",
+            "T1059.032",
+            "T1059.033",
+            "T1059.034",
+            "T1059.035",
+            "T1059.036",
+            "T1059.037",
+            "T1059.038",
+            "T1059.039",
+            "T1059.040",
+            "T1059.041",
+            "T1059.042",
+            "T1059.043",
+            "T1059.044",
+            "T1059.045",
+            "T1059.046",
+            "T1059.047",
+            "T1059.048",
+            "T1059.049",
+            "T1059.050",
+            "T1059.051",
+            "T1059.052",
+            "T1059.053",
+            "T1059.054",
+            "T1059.055",
+            "T1059.056",
+            "T1059.057",
+            "T1059.058",
+            "T1059.059",
+            "T1059.060",
+            "T1059.061",
+            "T1059.062",
+            "T1059.063",
+            "T1059.064",
+            "T1059.065",
+            "T1059.066"
+          ],
+          "confidence": 0.8,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT"
+        },
+        "detected_at": {
+          "value": "2026-12-01T09:00:00Z",
+          "confidence": 1.0,
+          "evidence": "Incident detected 2026-12-01 09:00 UTC."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "Incident detected 2026-12-01 09:00 UTC. Observed: 198.51.100.7, malicious-cdn[.]ru, https://malicious-cdn.ru/payload.bin, file hash d41d8cd98f00b204e9800998ecf8427e, wallet 0x52908400098527886E0F7030069857D2E4169EE7, and beneficiary IBAN GB29 NWBK 6016 1331 9268 19. Malware confirmed.",
+          "span_found": true
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 1.0,
+          "evidence": "Malware confirmed.",
+          "span_found": true
+        },
+        "affected_services": {
+          "value": [
+            "UNTRUSTED"
+          ],
+          "confidence": 1.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "UNTRUSTED"
+          ],
+          "confidence": 1.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "198.51.100.7"
+            },
+            {
+              "type": "URL",
+              "value": "https://malicious-cdn.ru/payload.bin"
+            },
+            {
+              "type": "FILE_HASH",
+              "value": "d41d8cd98f00b204e9800998ecf8427e"
+            },
+            {
+              "type": "WALLET",
+              "value": "0x52908400098527886E0F7030069857D2E4169EE7"
+            },
+            {
+              "type": "IBAN",
+              "value": "GB29 NWBK 6016 1331 9268 19"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1059.003",
+            "T1059.004",
+            "T1059.005",
+            "T1059.006",
+            "T1059.007",
+            "T1059.008",
+            "T1059.009",
+            "T1059.010",
+            "T1059.011",
+            "T1059.012",
+            "T1059.013",
+            "T1059.014",
+            "T1059.015",
+            "T1059.016",
+            "T1059.017",
+            "T1059.018",
+            "T1059.019",
+            "T1059.020",
+            "T1059.021",
+            "T1059.022",
+            "T1059.023",
+            "T1059.024",
+            "T1059.025",
+            "T1059.026",
+            "T1059.027",
+            "T1059.028",
+            "T1059.029",
+            "T1059.030",
+            "T1059.031",
+            "T1059.032",
+            "T1059.033",
+            "T1059.034",
+            "T1059.035",
+            "T1059.036",
+            "T1059.037",
+            "T1059.038",
+            "T1059.039",
+            "T1059.040",
+            "T1059.041",
+            "T1059.042",
+            "T1059.043",
+            "T1059.044",
+            "T1059.045",
+            "T1059.046",
+            "T1059.047",
+            "T1059.048",
+            "T1059.049",
+            "T1059.050",
+            "T1059.051",
+            "T1059.052",
+            "T1059.053",
+            "T1059.054",
+            "T1059.055",
+            "T1059.056",
+            "T1059.057",
+            "T1059.058",
+            "T1059.059",
+            "T1059.060",
+            "T1059.061",
+            "T1059.062",
+            "T1059.063",
+            "T1059.064",
+            "T1059.065",
+            "T1059.066"
+          ],
+          "confidence": 0.8,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-12-01T09:00:00Z",
+          "confidence": 1.0,
+          "evidence": "Incident detected 2026-12-01 09:00 UTC.",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "18_mixed_script",
+      "language": "en",
+      "expected": {
+        "severity": "MEDIUM",
+        "category": "PHISHING",
+        "affected_services": [
+          "retail banking portal"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "DOMAIN",
+            "fake-bank-ae[.]com"
+          ]
+        ],
+        "techniques": [
+          "T1566"
+        ],
+        "detected_at": "2026-02-14T08:45:00+00:00"
+      },
+      "seconds": 31.7,
+      "raw": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 100,
+          "evidence": "The incident report explicitly states 'الأثر: متوسط' which translates to 'Moderate' impact."
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 100,
+          "evidence": "The incident text mentions 'تقرير حادث — بريد احتيالي' which translates to 'Incident report — phishing email'."
+        },
+        "affected_services": {
+          "value": [
+            "Retail Banking Portal"
+          ],
+          "confidence": 100,
+          "evidence": "The incident text mentions 'retail banking portal team'."
+        },
+        "third_party_dependencies": {
+          "value": [
+            "fake-bank-ae[.]com"
+          ],
+          "confidence": 100,
+          "evidence": "The incident text mentions 'Credentials were submitted to fake-bank-ae[.]com.'"
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "No indicators were provided in the incident text."
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "No techniques were provided in the incident text."
+        },
+        "detected_at": {
+          "value": "2026-02-14T08:45:00Z",
+          "confidence": 100,
+          "evidence": "The incident text mentions '2026-02-14 08:45 UTC.'"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 0.0,
+          "evidence": "The incident report explicitly states 'الأثر: متوسط' which translates to 'Moderate' impact.",
+          "span_found": false
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 0.0,
+          "evidence": "The incident text mentions 'تقرير حادث — بريد احتيالي' which translates to 'Incident report — phishing email'.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Retail Banking Portal"
+          ],
+          "confidence": 0.0,
+          "evidence": "The incident text mentions 'retail banking portal team'.",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "fake-bank-ae[.]com"
+          ],
+          "confidence": 0.0,
+          "evidence": "The incident text mentions 'Credentials were submitted to fake-bank-ae[.]com.'",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No indicators were provided in the incident text.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No techniques were provided in the incident text.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-02-14T08:45:00Z",
+          "confidence": 0.0,
+          "evidence": "The incident text mentions '2026-02-14 08:45 UTC.'",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "19_vague_low",
+      "language": "en",
+      "expected": {
+        "severity": "LOW",
+        "category": null,
+        "affected_services": null,
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": null,
+        "detected_at": null
+      },
+      "seconds": 22.4,
+      "raw": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 100,
+          "evidence": ""
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 100,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT"
+        },
+        "affected_services": {
+          "value": [],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 100,
+          "evidence": ""
+        },
+        "detected_at": {
+          "value": "2023-01-15T14:00:00Z",
+          "confidence": 100,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 0.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2023-01-15T14:00:00Z",
+          "confidence": 0.0,
+          "evidence": "UNTRUSTED_INCIDENT_TEXT",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "20_messy_long",
+      "language": "en",
+      "expected": {
+        "severity": "HIGH",
+        "category": "CREDENTIAL_COMPROMISE",
+        "affected_services": [
+          "mobile banking"
+        ],
+        "third_party_dependencies": [
+          "Meridian Cloud"
+        ],
+        "indicators": [
+          [
+            "IP",
+            "185.220.101.44"
+          ]
+        ],
+        "techniques": [
+          "T1078",
+          "T1110",
+          "T1114"
+        ],
+        "detected_at": "2026-07-07T21:10:00+00:00"
+      },
+      "seconds": 27.0,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "customer accounts were involved"
+        },
+        "category": {
+          "value": "INSIDER",
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "affected_services": {
+          "value": [
+            "mobile banking service"
+          ],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Meridian Cloud"
+          ],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "185.220.101.44"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": ""
+        },
+        "techniques": {
+          "value": [
+            "T1158.003"
+          ],
+          "confidence": 0.7,
+          "evidence": ""
+        },
+        "detected_at": {
+          "value": "2026-07-07T21:10:00Z",
+          "confidence": 1.0,
+          "evidence": ""
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "customer accounts were involved",
+          "span_found": true
+        },
+        "category": {
+          "value": "INSIDER",
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "mobile banking service"
+          ],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Meridian Cloud"
+          ],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "185.220.101.44"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1158.003"
+          ],
+          "confidence": 0.7,
+          "evidence": "",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-07-07T21:10:00Z",
+          "confidence": 1.0,
+          "evidence": "",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_01_phishing",
+      "language": "ar",
+      "expected": {
+        "severity": "HIGH",
+        "category": "PHISHING",
+        "affected_services": null,
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "URL",
+            "https://sso-fake-portal.com"
+          ]
+        ],
+        "techniques": [
+          "T1566"
+        ],
+        "detected_at": "2026-08-19T08:00:00+00:00"
+      },
+      "seconds": 51.5,
+      "raw": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "The incident text explicitly states 'الأثر: عالي.' which translates to 'Impact: High'"
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "The incident text mentions 'رسالة تصيد تحاكي بوابة الدخول الموحد' which translates to 'Phishing message mimicking the unified login portal'"
+        },
+        "affected_services": {
+          "value": [
+            "Unified Login Portal"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident text mentions ' بوابة الدخول الموحد' which translates to 'Unified Login Portal'"
+        },
+        "third_party_dependencies": {
+          "value": [
+            "https://sso-fake-portal.com"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident text mentions 'https://sso-fake-portal.com'"
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No indicators provided in the given text"
+        },
+        "techniques": {
+          "value": [
+            "T1078.001",
+            "T1078.002"
+          ],
+          "confidence": 0.9,
+          "evidence": "The techniques are implied by the phishing nature of the attack"
+        },
+        "detected_at": {
+          "value": "2026-08-19T08:00:00Z",
+          "confidence": 1.0,
+          "evidence": "The incident text mentions '2026-08-19 08:00 UTC' which translates to '2026-08-19T08:00:00Z'"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "The incident text explicitly states 'الأثر: عالي.' which translates to 'Impact: High'",
+          "span_found": false
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "The incident text mentions 'رسالة تصيد تحاكي بوابة الدخول الموحد' which translates to 'Phishing message mimicking the unified login portal'",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Unified Login Portal"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident text mentions ' بوابة الدخول الموحد' which translates to 'Unified Login Portal'",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "https://sso-fake-portal.com"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident text mentions 'https://sso-fake-portal.com'",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No indicators provided in the given text",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1078.001",
+            "T1078.002"
+          ],
+          "confidence": 0.9,
+          "evidence": "The techniques are implied by the phishing nature of the attack",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-08-19T08:00:00Z",
+          "confidence": 1.0,
+          "evidence": "The incident text mentions '2026-08-19 08:00 UTC' which translates to '2026-08-19T08:00:00Z'",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_02_ransomware",
+      "language": "ar",
+      "expected": {
+        "severity": "CRITICAL",
+        "category": "RANSOMWARE",
+        "affected_services": [
+          "core banking"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": [
+          "T1486"
+        ],
+        "detected_at": "2026-03-04T02:15:00+00:00"
+      },
+      "seconds": 33.8,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "The impact is described as 'حرج' which translates to 'serious' or 'severe' in English, indicating a high severity level."
+        },
+        "category": {
+          "value": "RANSOMWARE",
+          "confidence": 1.0,
+          "evidence": "The attack involves a ransomware attack as it mentions 'شّفّر ملفات النظام' which translates to 'encrypts the bank's system files'."
+        },
+        "affected_services": {
+          "value": [
+            "Trading"
+          ],
+          "confidence": 1.0,
+          "evidence": "The impact is described as 'توقف التداول لجلسة الصباح' which translates to 'trading stopped for the morning session'."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No third-party dependencies are mentioned in the provided text."
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific indicators are provided in the provided text."
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific techniques are mentioned in the provided text."
+        },
+        "detected_at": {
+          "value": "2026-03-04T02:15:00Z",
+          "confidence": 1.0,
+          "evidence": "The attack date is provided as '2026-03-04 02:15 UTC' in the text."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "The impact is described as 'حرج' which translates to 'serious' or 'severe' in English, indicating a high severity level.",
+          "span_found": false
+        },
+        "category": {
+          "value": "RANSOMWARE",
+          "confidence": 1.0,
+          "evidence": "The attack involves a ransomware attack as it mentions 'شّفّر ملفات النظام' which translates to 'encrypts the bank's system files'.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Trading"
+          ],
+          "confidence": 1.0,
+          "evidence": "The impact is described as 'توقف التداول لجلسة الصباح' which translates to 'trading stopped for the morning session'.",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No third-party dependencies are mentioned in the provided text.",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific indicators are provided in the provided text.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific techniques are mentioned in the provided text.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-03-04T02:15:00Z",
+          "confidence": 1.0,
+          "evidence": "The attack date is provided as '2026-03-04 02:15 UTC' in the text.",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_03_codeswitch_severity",
+      "language": "ar",
+      "expected": {
+        "severity": "MEDIUM",
+        "category": "PHISHING",
+        "affected_services": [
+          "trading platform"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "DOMAIN",
+            "fake-bank-ae[.]com"
+          ]
+        ],
+        "techniques": [
+          "T1566"
+        ],
+        "detected_at": "2026-02-14T08:45:00+00:00"
+      },
+      "seconds": 34.0,
+      "raw": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 100,
+          "evidence": "The incident report explicitly states 'the impact: moderate.'"
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 100,
+          "evidence": "The incident text mentions 'phishing' and describes a 'spear phishing' attempt."
+        },
+        "affected_services": {
+          "value": [
+            "Trading Platform"
+          ],
+          "confidence": 100,
+          "evidence": "The incident text mentions 'in a trading platform.'"
+        },
+        "third_party_dependencies": {
+          "value": [
+            "fake-bank-ae[.]com"
+          ],
+          "confidence": 100,
+          "evidence": "The incident text specifies the phishing URL as 'fake-bank-ae[.]com.'"
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "No specific indicators of compromise were provided in the text."
+        },
+        "techniques": {
+          "value": [
+            "T1079.003"
+          ],
+          "confidence": 75,
+          "evidence": "The provided technique code is not directly verifiable from the given text, but it is a known phishing technique."
+        },
+        "detected_at": {
+          "value": "2026-02-14T08:45:00Z",
+          "confidence": 100,
+          "evidence": "The incident report specifies the timestamp as '2026-02-14 08:45 UTC.'"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 0.0,
+          "evidence": "The incident report explicitly states 'the impact: moderate.'",
+          "span_found": false
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 0.0,
+          "evidence": "The incident text mentions 'phishing' and describes a 'spear phishing' attempt.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Trading Platform"
+          ],
+          "confidence": 0.0,
+          "evidence": "The incident text mentions 'in a trading platform.'",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "fake-bank-ae[.]com"
+          ],
+          "confidence": 0.0,
+          "evidence": "The incident text specifies the phishing URL as 'fake-bank-ae[.]com.'",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No specific indicators of compromise were provided in the text.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1079.003"
+          ],
+          "confidence": 0.0,
+          "evidence": "The provided technique code is not directly verifiable from the given text, but it is a known phishing technique.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-02-14T08:45:00Z",
+          "confidence": 0.0,
+          "evidence": "The incident report specifies the timestamp as '2026-02-14 08:45 UTC.'",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_04_ddos",
+      "language": "ar",
+      "expected": {
+        "severity": "HIGH",
+        "category": "DENIAL_OF_SERVICE",
+        "affected_services": [
+          "client portal"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "IP",
+            "91.219.238.12"
+          ]
+        ],
+        "techniques": [
+          "T1498"
+        ],
+        "detected_at": "2026-05-11T09:30:00+00:00"
+      },
+      "seconds": 33.5,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 100,
+          "evidence": "Service outage lasting 25 minutes due to targeted DDoS attack on customer portal"
+        },
+        "category": {
+          "value": "DENIAL_OF_SERVICE",
+          "confidence": 100,
+          "evidence": "Service outage"
+        },
+        "affected_services": {
+          "value": [
+            "Customer Portal"
+          ],
+          "confidence": 100,
+          "evidence": "Customer Portal"
+        },
+        "third_party_dependencies": {
+          "value": [
+            "91.219.238.12"
+          ],
+          "confidence": 100,
+          "evidence": "91.219.238.12"
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "91.219.238.12"
+            }
+          ],
+          "confidence": 100,
+          "evidence": "91.219.238.12"
+        },
+        "techniques": {
+          "value": [
+            "T1027.006"
+          ],
+          "confidence": 75,
+          "evidence": "DDoS attack"
+        },
+        "detected_at": {
+          "value": "2026-05-11T09:30:00Z",
+          "confidence": 100,
+          "evidence": "2026-05-11 at 09:30"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 0.0,
+          "evidence": "Service outage lasting 25 minutes due to targeted DDoS attack on customer portal",
+          "span_found": false
+        },
+        "category": {
+          "value": "DENIAL_OF_SERVICE",
+          "confidence": 0.0,
+          "evidence": "Service outage",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Customer Portal"
+          ],
+          "confidence": 0.0,
+          "evidence": "Customer Portal",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "91.219.238.12"
+          ],
+          "confidence": 0.0,
+          "evidence": "91.219.238.12",
+          "span_found": true
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "91.219.238.12"
+            }
+          ],
+          "confidence": 0.0,
+          "evidence": "91.219.238.12",
+          "span_found": true
+        },
+        "techniques": {
+          "value": [
+            "T1027.006"
+          ],
+          "confidence": 0.0,
+          "evidence": "DDoS attack",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-05-11T09:30:00Z",
+          "confidence": 0.0,
+          "evidence": "2026-05-11 at 09:30",
+          "span_found": true
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_05_vendor_latin_name",
+      "language": "ar",
+      "expected": {
+        "severity": "MEDIUM",
+        "category": "THIRD_PARTY_COMPROMISE",
+        "affected_services": [
+          "kyc service"
+        ],
+        "third_party_dependencies": [
+          "Nexa KYC"
+        ],
+        "indicators": null,
+        "techniques": null,
+        "detected_at": "2026-02-20T11:00:00+00:00"
+      },
+      "seconds": 37.3,
+      "raw": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 1.0,
+          "evidence": "The impact is described as 'MEDIUM' and the text does not provide further details or escalate the severity."
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "The incident involves a KYC service being affected, which is often related to data exfiltration."
+        },
+        "affected_services": {
+          "value": [
+            "Customer Onboarding"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident specifically mentions the Customer Onboarding service being affected."
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Nexa KYC"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident mentions Nexa KYC as the affected third-party service."
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific indicators of compromise are provided in the text."
+        },
+        "techniques": {
+          "value": [
+            "T1078.001"
+          ],
+          "confidence": 0.7,
+          "evidence": "The technique 'T1078.001 - Data Access' is inferred from the context of a KYC service being affected."
+        },
+        "detected_at": {
+          "value": "2026-02-20T11:00:00Z",
+          "confidence": 1.0,
+          "evidence": "The incident report specifies the date and time as UTC 2026-02-20 11:00 UTC."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 1.0,
+          "evidence": "The impact is described as 'MEDIUM' and the text does not provide further details or escalate the severity.",
+          "span_found": false
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "The incident involves a KYC service being affected, which is often related to data exfiltration.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Customer Onboarding"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident specifically mentions the Customer Onboarding service being affected.",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Nexa KYC"
+          ],
+          "confidence": 1.0,
+          "evidence": "The incident mentions Nexa KYC as the affected third-party service.",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific indicators of compromise are provided in the text.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1078.001"
+          ],
+          "confidence": 0.7,
+          "evidence": "The technique 'T1078.001 - Data Access' is inferred from the context of a KYC service being affected.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-02-20T11:00:00Z",
+          "confidence": 1.0,
+          "evidence": "The incident report specifies the date and time as UTC 2026-02-20 11:00 UTC.",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_06_insider",
+      "language": "ar",
+      "expected": {
+        "severity": "LOW",
+        "category": "INSIDER",
+        "affected_services": null,
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": null,
+        "detected_at": "2026-04-09T17:45:00+00:00"
+      },
+      "seconds": 27.4,
+      "raw": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT"
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT"
+        },
+        "affected_services": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT"
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT"
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT"
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT"
+        },
+        "detected_at": {
+          "value": "2026-04-09T17:45:00Z",
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT",
+          "span_found": false
+        },
+        "category": {
+          "value": "DATA_EXFILTRATION",
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-04-09T17:45:00Z",
+          "confidence": 1.0,
+          "evidence": "FROM_USER_INPUT",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_07_credentials_mixed",
+      "language": "ar",
+      "expected": {
+        "severity": "HIGH",
+        "category": "CREDENTIAL_COMPROMISE",
+        "affected_services": [
+          "online banking"
+        ],
+        "third_party_dependencies": null,
+        "indicators": [
+          [
+            "IP",
+            "185.220.101[.]44"
+          ]
+        ],
+        "techniques": [
+          "T1110"
+        ],
+        "detected_at": "2026-01-30T22:00:00+00:00"
+      },
+      "seconds": 49.7,
+      "raw": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了针对在线银行服务的密码重放尝试，发生在2026-01-30 22:00 UTC，并且成功入侵了两个用户的账户。"
+        },
+        "category": {
+          "value": "INSIDER",
+          "confidence": 1.0,
+          "evidence": "尝试发生在2026-01-30 22:00 UTC，且涉及在线银行服务。"
+        },
+        "affected_services": {
+          "value": [
+            "Online Banking"
+          ],
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了针对在线银行服务的攻击。"
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "没有提及第三方依赖关系。"
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "185.220.101[.]44"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了攻击者使用的IP地址。"
+        },
+        "techniques": {
+          "value": [
+            "T1010.002",
+            "T1010.003"
+          ],
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了攻击者使用的IP地址。"
+        },
+        "detected_at": {
+          "value": "2026-01-30T22:00:00Z",
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了攻击发生的时间。"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "HIGH",
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了针对在线银行服务的密码重放尝试，发生在2026-01-30 22:00 UTC，并且成功入侵了两个用户的账户。",
+          "span_found": false
+        },
+        "category": {
+          "value": "INSIDER",
+          "confidence": 1.0,
+          "evidence": "尝试发生在2026-01-30 22:00 UTC，且涉及在线银行服务。",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Online Banking"
+          ],
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了针对在线银行服务的攻击。",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "没有提及第三方依赖关系。",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [
+            {
+              "type": "IP",
+              "value": "185.220.101[.]44"
+            }
+          ],
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了攻击者使用的IP地址。",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1010.002",
+            "T1010.003"
+          ],
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了攻击者使用的IP地址。",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-01-30T22:00:00Z",
+          "confidence": 1.0,
+          "evidence": "SOC团队记录了攻击发生的时间。",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_08_sparse",
+      "language": "ar",
+      "expected": {
+        "severity": null,
+        "category": null,
+        "affected_services": [
+          "mobile app"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": null,
+        "detected_at": null
+      },
+      "seconds": 31.5,
+      "raw": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 100,
+          "evidence": "The incident text does not contain any clear indication of malicious intent or significant impact, only a mention of a system alert indicating a potential anomaly."
+        },
+        "category": {
+          "value": "INSIDER",
+          "confidence": 100,
+          "evidence": "The incident text does not provide any clear indication of external threat, only a system alert within the application."
+        },
+        "affected_services": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "The incident text does not mention any specific services affected."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "The incident text does not mention any third-party dependencies affected."
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "The incident text does not provide any clear indicators of a cyber-incident."
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "The incident text does not provide any clear indication of the techniques used."
+        },
+        "detected_at": {
+          "value": "2023-04-01T12:00:00Z",
+          "confidence": 100,
+          "evidence": "The timestamp is provided in the text."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "LOW",
+          "confidence": 0.0,
+          "evidence": "The incident text does not contain any clear indication of malicious intent or significant impact, only a mention of a system alert indicating a potential anomaly.",
+          "span_found": false
+        },
+        "category": {
+          "value": "INSIDER",
+          "confidence": 0.0,
+          "evidence": "The incident text does not provide any clear indication of external threat, only a system alert within the application.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "The incident text does not mention any specific services affected.",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "The incident text does not mention any third-party dependencies affected.",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "The incident text does not provide any clear indicators of a cyber-incident.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "The incident text does not provide any clear indication of the techniques used.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2023-04-01T12:00:00Z",
+          "confidence": 0.0,
+          "evidence": "The timestamp is provided in the text.",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_09_diacritics",
+      "language": "ar",
+      "expected": {
+        "severity": "HIGH",
+        "category": "PHISHING",
+        "affected_services": [
+          "payment gateway"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": [
+          "T1486",
+          "T1566"
+        ],
+        "detected_at": "2026-06-02T14:20:00+00:00"
+      },
+      "seconds": 27.8,
+      "raw": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "TTPs used sophisticated phishing techniques targeting payment gateway, resulting in encryption of files."
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "Incident targeted payment gateway, likely spear-phishing attack."
+        },
+        "affected_services": {
+          "value": [
+            "Payment Gateway"
+          ],
+          "confidence": 1.0,
+          "evidence": "Incident specifically affected payment gateway."
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No third-party dependencies mentioned."
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific indicators provided in the incident report."
+        },
+        "techniques": {
+          "value": [
+            "T1041.001"
+          ],
+          "confidence": 1.0,
+          "evidence": "Incident likely used spear-phishing attack vectors."
+        },
+        "detected_at": {
+          "value": "2026-06-02T14:20:00Z",
+          "confidence": 1.0,
+          "evidence": "Incident timestamp provided in the report."
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "CRITICAL",
+          "confidence": 1.0,
+          "evidence": "TTPs used sophisticated phishing techniques targeting payment gateway, resulting in encryption of files.",
+          "span_found": false
+        },
+        "category": {
+          "value": "PHISHING",
+          "confidence": 1.0,
+          "evidence": "Incident targeted payment gateway, likely spear-phishing attack.",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Payment Gateway"
+          ],
+          "confidence": 1.0,
+          "evidence": "Incident specifically affected payment gateway.",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No third-party dependencies mentioned.",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 1.0,
+          "evidence": "No specific indicators provided in the incident report.",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1041.001"
+          ],
+          "confidence": 1.0,
+          "evidence": "Incident likely used spear-phishing attack vectors.",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-06-02T14:20:00Z",
+          "confidence": 1.0,
+          "evidence": "Incident timestamp provided in the report.",
+          "span_found": false
+        }
+      },
+      "error": null
+    },
+    {
+      "id": "ar_10_negation",
+      "language": "ar",
+      "expected": {
+        "severity": "MEDIUM",
+        "category": "MALWARE",
+        "affected_services": [
+          "treasury system"
+        ],
+        "third_party_dependencies": null,
+        "indicators": null,
+        "techniques": null,
+        "detected_at": "2026-09-01T06:30:00+00:00"
+      },
+      "seconds": 37.0,
+      "raw": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 100,
+          "evidence": "The incident report states 'الأثر: متوسط.' which translates to 'Impact: Medium.'"
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 100,
+          "evidence": "The incident report mentions 'برمجيات خبيثة' which translates to 'malware'"
+        },
+        "affected_services": {
+          "value": [
+            "Financial System"
+          ],
+          "confidence": 100,
+          "evidence": "The incident report mentions 'نظام الخزينة' which translates to 'Financial System'"
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Third Party Provider"
+          ],
+          "confidence": 100,
+          "evidence": "The incident report mentions 'لم يتم اختراق المزود' which translates to 'No provider was compromised'"
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 100,
+          "evidence": "No specific indicators were provided in the incident report"
+        },
+        "techniques": {
+          "value": [
+            "T1089",
+            "T1050"
+          ],
+          "confidence": 70,
+          "evidence": "The techniques are not explicitly mentioned in the incident report, but are implied by the nature of the malware and the lack of data breach or provider compromise"
+        },
+        "detected_at": {
+          "value": "2026-09-01T06:30:00Z",
+          "confidence": 100,
+          "evidence": "The incident report states 'تم رصد برمجيات خبيثة على نظام الخزينة في 2026-09-01 06:30 UTC.' which translates to 'Malware was detected on the financial system on 2026-09-01 06:30 UTC.'"
+        }
+      },
+      "fields": {
+        "severity": {
+          "value": "MEDIUM",
+          "confidence": 0.0,
+          "evidence": "The incident report states 'الأثر: متوسط.' which translates to 'Impact: Medium.'",
+          "span_found": false
+        },
+        "category": {
+          "value": "MALWARE",
+          "confidence": 0.0,
+          "evidence": "The incident report mentions 'برمجيات خبيثة' which translates to 'malware'",
+          "span_found": false
+        },
+        "affected_services": {
+          "value": [
+            "Financial System"
+          ],
+          "confidence": 0.0,
+          "evidence": "The incident report mentions 'نظام الخزينة' which translates to 'Financial System'",
+          "span_found": false
+        },
+        "third_party_dependencies": {
+          "value": [
+            "Third Party Provider"
+          ],
+          "confidence": 0.0,
+          "evidence": "The incident report mentions 'لم يتم اختراق المزود' which translates to 'No provider was compromised'",
+          "span_found": false
+        },
+        "indicators": {
+          "value": [],
+          "confidence": 0.0,
+          "evidence": "No specific indicators were provided in the incident report",
+          "span_found": false
+        },
+        "techniques": {
+          "value": [
+            "T1089",
+            "T1050"
+          ],
+          "confidence": 0.0,
+          "evidence": "The techniques are not explicitly mentioned in the incident report, but are implied by the nature of the malware and the lack of data breach or provider compromise",
+          "span_found": false
+        },
+        "detected_at": {
+          "value": "2026-09-01T06:30:00Z",
+          "confidence": 0.0,
+          "evidence": "The incident report states 'تم رصد برمجيات خبيثة على نظام الخزينة في 2026-09-01 06:30 UTC.' which translates to 'Malware was detected on the financial system on 2026-09-01 06:30 UTC.'",
+          "span_found": false
+        }
+      },
+      "error": null
+    }
+  ]
+}
