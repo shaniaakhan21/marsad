@@ -55,6 +55,7 @@ Both are deliberately short.
 make install          # contracts (editable) + service deps + Playwright browser
 make test             # backend unit tests — the privacy and correlation guarantees
 make test-boundary    # the network boundary, proven inside the real containers
+make migrate          # both databases, empty to current, in one command
 make test-network     # the handful of tests that hit a real UAE government portal
 make test-e2e         # Playwright smoke suite against the real UI, see below
 make run              # docker compose: 3 connectors + core + web
@@ -302,9 +303,13 @@ python -m pytest tests/test_canary.py -v    # on its own
 
 It plants unique random strings inside an incident, runs the **real** pipeline —
 A2 extraction, human confirmation, A3 redaction, submission, core correlation — and
-then looks for them everywhere the core can hold or emit anything: an exhaustive
-recursive walk of the core's entire object graph, every API response including the
-OpenAPI document, and every line the core logs. Four surfaces are canaried
+then looks for them everywhere the core can hold or emit anything: **the core
+database — every table, every column, every row**, with tables found by reflection
+rather than by asking the ORM what it declared; an exhaustive recursive walk of the
+core's process state, since the correlation engine keeps an in-memory index rebuilt
+from the database; every API response including the OpenAPI document; and every line
+the core logs. Both store backends are covered — Postgres/SQLite and the in-memory
+one kept for speed. Four surfaces are canaried
 separately: ordinary prose, an analyst note, a plaintext indicator, and a vendor name
 planted specifically because extraction quotes it **verbatim as span evidence** — the
 provenance surface free-text intake introduced. A fifth is Arabic, planted so that
@@ -314,10 +319,12 @@ inside the institution.
 Two things keep it honest. Every canary is asserted **present** on the edge before it
 is asserted absent at the core, and the core is asserted to have actually ingested the
 submission — a canary test that passes because nothing ran is a green light with
-nothing behind it. And `test_the_sweep_can_actually_find_a_leak` plants a canary
-directly into core state and requires the sweep to catch it, so the sweep itself is
-tested. `test_core_still_has_no_database_this_sweep_would_miss` fails the build the
-day Postgres arrives, so the sweep cannot silently stop covering the store.
+nothing behind it. And the sweep itself is tested twice over:
+`test_the_sweep_can_actually_find_a_leak` plants a canary in core process state, and
+`test_the_sweep_can_find_a_leak_planted_in_a_database_row` writes one into a real
+column of a real table and requires the sweep to report it at the right path.
+`test_the_sweep_reflects_tables_rather_than_trusting_the_orm` creates a table outside
+the ORM and requires the sweep to find that too.
 
 ### The network boundary test — isolation the code cannot undo
 
@@ -362,6 +369,72 @@ pretending the hole is closed.
 Both suites run in CI on every push (`.github/workflows/ci.yml`), the canary in the
 backend job and the boundary in its own Docker job, so a refactor cannot quietly
 breach either.
+
+---
+
+## Two databases, never one
+
+The edge stores plaintext — narrative, analyst notes, the attacker's email body, and
+extraction provenance that quotes the narrative verbatim. The core stores boundary
+payloads. **They are separate databases and they must stay separate**, because this is
+the one control that would be destroyed silently: sharing an instance is a
+configuration, invisible in code review, and it makes narrative reachable from the core
+without a line of code changing.
+
+Three independent separations, each enforced by something different:
+
+| Separation | Enforced by | Checked by |
+|---|---|---|
+| Separate MetaData — the core ORM cannot name an edge table | `CoreBase` / `EdgeBase` | `test_the_two_sides_share_no_table` |
+| Separate schemas — `core.*` and `edge.*` | Schema-qualified models; the name is a constant, not a setting | `test_the_schemas_are_different_and_not_configurable_to_match` |
+| Separate instances — different databases, on different networks | `docker-compose.yml`: `core-db` on `core_net`, `edge-db-<institution>` on that institution's edge network | `test_a_core_session_cannot_reach_an_edge_table`, plus the boundary suite |
+
+The core schema also has no column a narrative could land in, which
+`test_the_core_schema_has_no_column_that_could_hold_narrative` asserts by name. The
+store cannot express what must not cross.
+
+SQLite is used for local runs and the fast test path. Schemas are real there too — the
+engine attaches a database under the schema's name — so the test path exercises the
+same schema-qualified SQL as Postgres rather than a schema-less variant that would
+hide a class of bug.
+
+### Migrations
+
+```bash
+make migrate     # both databases, empty to current
+```
+
+Two separate Alembic trees (`services/core/alembic`, `services/connector/alembic`),
+never merged. Each keeps its `alembic_version` table **inside its own schema**, so if
+the two were ever pointed at one database their histories could not collide in a
+shared namespace — each would refuse rather than run the other's migrations. Each
+tree's `include_object` refuses to touch tables outside its schema, so a migration run
+against the wrong URL cannot alter the other side. Containers run `alembic upgrade
+head` before serving, so a container that cannot migrate never starts.
+
+### Retention on the edge plaintext store
+
+`MARSAD_RETENTION_DAYS` (default **90**). After the window, these expire:
+
+- `narrative`, `narrative_normalised`, `analyst_notes`, `raw_email`
+- **every `extraction_provenance` row**
+
+That second line is the point. `ExtractionProvenance.evidence` holds a verbatim slice
+of the narrative and the span offsets index into it — it is the narrative, in a table
+whose name does not say so. Clearing the narrative and leaving provenance behind
+produces a database that looks purged and still holds the analyst's words, which is
+worse than not purging, because someone would believe it was done. So provenance
+expires **with** the narrative, never after it, by two independent mechanisms: the
+purge deletes both in one transaction, and the foreign key cascades if anything
+deletes an incident another way.
+
+Deliberately kept: severity, techniques, indicator types, detection time, and the
+obligation receipt. That is what a regulator may ask about months later and what A3
+derives a submission from — structured, bounded, and none of it free text an analyst
+wrote. A row whose `expires_at` was never set is treated as expiring on the default
+window from creation, not as "keep forever": text nobody made a decision about is
+exactly the text most likely to be forgotten. A purged incident records `redacted_at`,
+so a reader can tell "no narrative was written" from "the narrative expired".
 
 ---
 

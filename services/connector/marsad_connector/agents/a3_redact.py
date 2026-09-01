@@ -54,8 +54,8 @@ from marsad_contracts.boundary import (
     IndicatorType,
     KeyedToken,
     ObligationReceiptRef,
-    SeverityBand,
     Sector,
+    SeverityBand,
     SizeBand,
 )
 

@@ -24,7 +24,9 @@ from marsad_connector.agents.a4_obligation import resolve as resolve_obligations
 from marsad_connector.agents.a14_supervisor import inspect as inspect_for_injection
 from marsad_connector.config import settings
 from marsad_connector.crypto.tokeniser import build_tokeniser
+from marsad_connector.db.session import build_engine, build_sessionmaker, create_all
 from marsad_connector.llm.provider import LLMProvider, build_llm
+from marsad_connector.store import InMemoryStore, SqlStore, provenance_from_draft
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("marsad.connector")
@@ -32,8 +34,27 @@ log = logging.getLogger("marsad.connector")
 app = FastAPI(title="MARSAD Connector", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-#: In-memory for the prototype; swap for the SQLAlchemy model in models.py.
-LOCAL: dict[str, "IncidentIn"] = {}
+def _build_store():
+    """
+    The institution's store, chosen at boot.
+
+    SQLite locally, Postgres in deployment, and an in-memory backend for tests. It is
+    built here rather than lazily so a misconfigured database stops the connector from
+    starting — the same reason the LLM provider is constructed at import.
+    """
+    cfg = settings()
+    if cfg.store == "memory":
+        return InMemoryStore()
+    engine = build_engine(cfg.database_url)
+    if cfg.auto_create_schema:
+        create_all(engine)
+    return SqlStore(build_sessionmaker(engine), retention_days=cfg.retention_days,
+                    model=lambda **kw: IncidentIn(**kw))
+
+
+#: The institution's incidents. Plaintext, and it never leaves this process except
+#: through A3, which builds an allow-listed payload rather than reading these rows.
+LOCAL = _build_store()
 
 
 def _build_llm_at_startup() -> LLMProvider:
@@ -134,7 +155,7 @@ async def health():
     return {
         "ok": True,
         "institution": cfg.institution_name,
-        "local_incidents": len(LOCAL),
+        "local_incidents": LOCAL.count(),
         "llm_provider": LLM.name,
         "sovereign_mode": cfg.sovereign_mode,
     }
@@ -145,7 +166,7 @@ async def create_incident(incident: IncidentIn):
     """Store locally. Nothing leaves until /submit is called explicitly."""
     iid = str(uuid.uuid4())
     incident.detected_at = incident.detected_at or datetime.now(timezone.utc)
-    LOCAL[iid] = incident
+    LOCAL.save(iid, incident)
 
     # A14 runs at intake, before any model sees the text. An injection is
     # neutralised and logged; it never blocks the incident, because halting on
@@ -217,7 +238,7 @@ async def confirm_draft(draft_id: str, body: ConfirmIn):
         raise HTTPException(422, str(exc)) from exc
 
     iid = str(uuid.uuid4())
-    LOCAL[iid] = IncidentIn(
+    stored = IncidentIn(
         narrative=confirmed.narrative,
         analyst_notes=confirmed.analyst_notes,
         indicators=confirmed.indicators,
@@ -231,6 +252,9 @@ async def confirm_draft(draft_id: str, body: ConfirmIn):
         source="EXTRACTION_CONFIRMED",
         confirmed_by=confirmed.confirmed_by,
     )
+    # Provenance is written with the incident and shares its retention clock: every
+    # row carries a verbatim slice of the narrative, so it must not outlive it.
+    LOCAL.save(iid, stored, provenance_from_draft(draft))
     del DRAFTS[draft_id]
     log.info(
         "connector.confirmed draft=%s incident=%s by=%s edited=%s",
@@ -265,7 +289,7 @@ async def get_incident(iid: str):
     """Local view only — this endpoint is not reachable from the core."""
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
-    return LOCAL[iid]
+    return LOCAL.get(iid)
 
 
 @app.post("/v1/incidents/{iid}/obligations")
@@ -279,7 +303,7 @@ async def obligations(iid: str):
     """
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
-    inc = LOCAL[iid]
+    inc = LOCAL.get(iid)
     cfg = settings()
     result = resolve_obligations(
         severity=inc.severity,
@@ -296,7 +320,7 @@ async def supervise(iid: str):
     """A14 — re-run injection inspection on demand, for the demo and for audit."""
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
-    inc = LOCAL[iid]
+    inc = LOCAL.get(iid)
     return inspect_for_injection(
         "\n".join(filter(None, [inc.narrative, inc.analyst_notes, inc.raw_email]))
     ).as_dict()
@@ -335,7 +359,7 @@ def _build(iid: str) -> IncidentSubmission:
     agent = RedactionAgent(build_tokeniser(cfg.tokeniser))
     try:
         return agent.build_submission(
-            LOCAL[iid],
+            LOCAL.get(iid),
             institution_ref=cfg.institution_ref,
             sector=Sector(cfg.sector),
             size_band=SizeBand(cfg.size_band),

@@ -108,19 +108,26 @@ real portal is marked `@pytest.mark.network` and stays out of the default run.
   so upgrading a trust assumption is a change of binding, not a rewrite.
 - Weaker-than-target implementations self-label (`reduced_fidelity = True`) and that label
   propagates to every downstream alert. Nothing degrades silently.
-- `make lint` (`ruff check packages services tests`) is **not** clean: 39 pre-existing
+- `make lint` (`ruff check packages services tests`) is **not** clean: 30 pre-existing
   errors, mostly `# noqa: E402` on the test path shims and logically-grouped `__all__`.
   The rule is a ratchet — your change must not raise that number. Fix what you touch if
   you like, but do not leave it higher than you found it.
 
 ## The rule
 
-**Every change must leave `python -m pytest` fully green.** Currently 284 passed, 17 deselected
+**Every change must leave `python -m pytest` fully green.** Currently 303 passed, 21 deselected
 (the `network` marker — `make test-network`; and the `docker` marker — `make test-boundary`). No
 skips, no xfails, no "unrelated failure". If a test blocks you, it is a claim someone made
 deliberately — understand the claim before you touch it.
 
-Two of those tests check the central claim rather than a mechanism supporting it:
-`tests/test_canary.py` proves nothing planted inside an institution reaches the core, and
-`tests/test_network_boundary.py` proves a connector cannot reach the core at all. Both run in CI.
-Neither may be weakened to make a change pass.
+Three of those tests check the central claim rather than a mechanism supporting it:
+`tests/test_canary.py` proves nothing planted inside an institution reaches the core — sweeping
+the core database table by table, column by column, row by row;
+`tests/test_network_boundary.py` proves a connector cannot reach the core at all; and
+`tests/test_persistence.py` proves a core database session cannot reach an edge table. All run in
+CI. None may be weakened to make a change pass.
+
+**The edge and the core have separate databases.** Separate instances, separate schemas, separate
+MetaData. Pointing them at one database would make narrative reachable from the core without a
+line of code changing, and nothing downstream would notice. Extraction provenance quotes the
+narrative verbatim, so it expires with it — see the retention policy in `db/retention.py`.
