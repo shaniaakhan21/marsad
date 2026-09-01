@@ -2,7 +2,10 @@
 install:
 	pip install -e packages/contracts
 	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
-	  "psycopg[binary]" alembic openpyxl camel-tools pytest ruff
+	  "psycopg[binary]" alembic openpyxl pytest ruff
+	# The oracle for the vendored Arabic normalisation. A test dependency only — it is
+	# never installed in the connector image. See services/connector/pyproject.toml.
+	pip install "camel-tools>=1.5"
 	cd apps/web && npm install && npx playwright install --with-deps chromium
 test:
 	python -m pytest tests/ -v

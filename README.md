@@ -438,6 +438,43 @@ so a reader can tell "no narrative was written" from "the narrative expired".
 
 ---
 
+## Arabic normalisation is vendored, and tested against the real thing
+
+`camel-tools` declares torch, transformers and the NVIDIA CUDA runtime as hard
+dependencies. Installing it to obtain four character maps produced an **8.73GB**
+connector image — a deep-learning stack, and its attack surface, shipped inside an
+institution's perimeter for four `str.translate` tables. Three connectors at that size
+also do not fit on a modest VPS.
+
+The four maps — `dediac_ar`, `normalize_alef_ar`, `normalize_alef_maksura_ar`,
+`normalize_teh_marbuta_ar` — are now implemented in
+[lang/arabic.py](services/connector/marsad_connector/lang/arabic.py), derived from and
+cited to CAMeL Tools 1.6.0. They are deliberately dull: a table and a translate, so a
+reviewer can check them against the upstream source by eye.
+
+**Image: 8.73GB → 327MB**, a 96% reduction, with no torch and no CUDA in the runtime.
+
+Vendoring normally trades one risk for another — a second implementation that drifts
+silently. Here it is a test instead of a hope.
+[test_vendored_normalisation.py](tests/test_vendored_normalisation.py) keeps the real
+CAMeL Tools as a **test-only** dependency and asserts identical output for **every
+codepoint in the Arabic block U+0600–U+06FF, individually** (303 assertions, one per
+character, so a drift failure names the exact codepoint), for the whole block as a
+single string, for each of the four operations separately, for every Arabic and
+code-switched narrative fixture, and for the offset map that spans depend on. A
+missing oracle is an error rather than a skip, because a silently skipped oracle leaves
+the vendored tables unverified while the suite still looks green.
+
+`test_camel_tools_is_not_a_runtime_dependency` keeps the saving: it fails if any
+runtime module imports it, if the Dockerfile installs it, or if it reappears outside
+the test extra.
+
+The single-function guarantee is unchanged. `normalise()` is still one function object
+shared by the write and query paths — `test_write_and_query_paths_share_one_normalisation_function`
+asserts identity, not equivalence.
+
+---
+
 ## Design decisions worth knowing before you change things
 
 **`institution_ref` is a rotating pseudonym.** Not a name, not a stable ID. The
