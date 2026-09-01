@@ -10,16 +10,22 @@ anything.
 
 What "everywhere" means here
 ----------------------------
-Core state is in-memory today, so the equivalent of "every table, every column" is an
-exhaustive recursive walk of the core's entire object graph: dicts, lists, sets,
-dataclasses, Pydantic models, and the attributes of every object reachable from
-`STATE`. That is strictly more thorough than a column sweep, because it also reaches
-indexes, caches and engine internals that no schema would list.
-`test_core_still_has_no_database_this_sweep_would_miss` fails the build the day a real
-database is introduced, so the sweep cannot silently stop covering the store.
+Three surfaces, swept in full:
 
-Alongside that: every response the core API can produce, including its OpenAPI
-document, and every log line the core writes.
+1. **The core database — every table, every column, every row.** Tables are found by
+   **reflection**, not by asking the ORM what it declared. A leak that mattered would
+   most likely arrive in a table someone added outside `CoreBase`, or a column added
+   in a migration and forgotten; asking the ORM for its own table list would miss
+   exactly that case. Reflection asks the database what it actually holds.
+2. **Core process state** — an exhaustive recursive walk of the object graph reachable
+   from `STATE`: dicts, lists, sets, dataclasses, Pydantic models and object
+   attributes. The correlation engine keeps an in-memory token index rebuilt from the
+   database at startup, and a cache is as capable of holding a leak as a table.
+3. **Everything the core says** — every API response, the OpenAPI document, and every
+   line the core logs.
+
+Both store backends are swept. `sql` is the store of record; `memory` is kept so the
+suite stays fast, and a canary must not survive in either.
 
 Why the positive controls matter more than the assertions
 ---------------------------------------------------------
@@ -42,6 +48,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -67,6 +74,19 @@ CORE_LOGGERS = ("marsad.core", "marsad.correlation", "marsad.similarity")
 #: Depth cap for the object walk. Nothing in core state is anywhere near this deep;
 #: it exists so a cycle the id-set misses cannot hang the suite.
 MAX_DEPTH = 40
+
+#: Machinery the object walk does not descend into: database engines, connection
+#: pools, ORM registries, loggers, threads.
+#:
+#: This is a deliberate exclusion and it costs nothing, because the store these
+#: objects front is swept DIRECTLY and exhaustively by `_walk_database` — every table,
+#: every column, every row, found by reflection. Descending into a live SQLAlchemy
+#: registry instead triggers attribute machinery that raises on access, which would
+#: make the sweep fragile without covering a single byte the database sweep misses.
+SKIP_MODULE_PREFIXES = (
+    "sqlalchemy", "psycopg", "sqlite3", "logging", "threading", "asyncio",
+    "concurrent", "_thread", "weakref",
+)
 
 
 # ---------------------------------------------------------------- the canaries
@@ -151,6 +171,10 @@ def _walk(obj: Any, path: str = "STATE", seen: set[int] | None = None,
         yield path, rendered
         return
 
+    module = type(obj).__module__ or ""
+    if module.split(".")[0] in SKIP_MODULE_PREFIXES:
+        return
+
     if isinstance(obj, BaseModel):
         yield from _walk(obj.model_dump(mode="json"), f"{path}.model_dump()", seen, depth + 1)
         return
@@ -168,10 +192,42 @@ def _walk(obj: Any, path: str = "STATE", seen: set[int] | None = None,
             yield from _walk(value, f"{path}[{index}]", seen, depth + 1)
         return
     if hasattr(obj, "__dict__"):
-        for name, value in vars(obj).items():
+        try:
+            attributes = list(vars(obj).items())
+        except Exception:  # noqa: BLE001 - an object whose __getattr__ raises must
+            attributes = []  # not be able to abort the sweep and hide a leak
+        for name, value in attributes:
             yield from _walk(value, f"{path}.{name}", seen, depth + 1)
-    for name in getattr(obj, "__slots__", ()):
+    slots = getattr(obj, "__slots__", ()) or ()
+    if isinstance(slots, str):
+        slots = (slots,)
+    for name in slots:
         yield from _walk(getattr(obj, name, None), f"{path}.{name}", seen, depth + 1)
+
+
+def _walk_database(engine: sa.Engine, schema: str) -> Iterator[tuple[str, str]]:
+    """
+    Every table, every column, every row — found by reflection.
+
+    Reflection rather than `CoreBase.metadata` on purpose. The ORM's table list is a
+    statement of what we meant to create; the database is a statement of what is
+    there. A table added by a migration, by a library, or by hand is precisely where
+    an unnoticed leak would sit, and only one of those two sources can see it.
+    """
+    metadata = sa.MetaData()
+    with engine.connect() as connection:
+        metadata.reflect(bind=connection, schema=schema)
+        assert metadata.tables, (
+            f"reflected no tables in schema {schema!r} — the sweep would pass "
+            f"vacuously. The store is not where this test thinks it is."
+        )
+        for table in metadata.sorted_tables:
+            columns = list(table.columns.keys())
+            for index, row in enumerate(connection.execute(sa.select(table))):
+                for column, value in zip(columns, row, strict=False):
+                    if value is None:
+                        continue
+                    yield f"{table.fullname}.{column}[row {index}]", str(value)
 
 
 def _defect(canary: str, where: str, detail: str) -> str:
@@ -200,10 +256,9 @@ def _assert_absent(canaries: Canaries, pairs: Iterator[tuple[str, str]], surface
 # ---------------------------------------------------------------- the pipeline
 
 
-@pytest.fixture
-def core_client(monkeypatch) -> Iterator[TestClient]:
+def _start_core(monkeypatch, tmp_path, backend: str) -> Iterator[TestClient]:
     """
-    A real core process in-process, with the network unreachable.
+    A real core process in-process, on a real database, with the network unreachable.
 
     The open-data fetchers are routed through a closed port so a portal outage can
     never make this test flaky, exactly as the e2e suite does it.
@@ -211,10 +266,71 @@ def core_client(monkeypatch) -> Iterator[TestClient]:
     for var in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
         monkeypatch.setenv(var, "http://127.0.0.1:9")
 
-    from marsad_core.main import app
+    monkeypatch.setenv("MARSAD_CORE_STORE", backend)
+    monkeypatch.setenv("MARSAD_CORE_DATABASE_URL", f"sqlite:///{tmp_path / 'core.db'}")
 
-    with TestClient(app) as client:
-        yield client
+    from marsad_core.config import settings as core_settings
+
+    core_settings.cache_clear()
+    from marsad_core.main import STATE, app
+
+    # STATE is module-global and survives between tests. A stale engine left by an
+    # earlier test would make the memory-backend fixture sweep a database, and the
+    # sql-backend fixture reuse another test's rows — both quietly wrong.
+    STATE.clear()
+
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        core_settings.cache_clear()
+
+
+@pytest.fixture
+def core_client(monkeypatch, tmp_path) -> Iterator[TestClient]:
+    """The store of record: a real database, swept table by table."""
+    yield from _start_core(monkeypatch, tmp_path, "sql")
+
+
+@pytest.fixture
+def core_client_memory(monkeypatch, tmp_path) -> Iterator[TestClient]:
+    """
+    The fast backend, kept deliberately.
+
+    It is what makes the rest of the suite quick, and nothing in the correlation
+    algorithm may start assuming a database is present. A canary must not survive
+    here either.
+    """
+    yield from _start_core(monkeypatch, tmp_path, "memory")
+
+
+def core_database(client: TestClient):
+    """The engine behind the store of record, or None when running in memory."""
+    from marsad_core.main import STATE
+
+    return STATE.get("db_engine")
+
+
+def sweep_core_store(canaries: Canaries, client: TestClient) -> int:
+    """
+    Sweep whichever store this core is using, and report how many values were read.
+
+    Returns the count so callers can assert the sweep actually looked at something —
+    a sweep over an empty store is not evidence of anything.
+    """
+    from marsad_core.db.base import CORE_SCHEMA
+    from marsad_core.main import STATE
+
+    values = 0
+    engine = core_database(client)
+    if engine is not None:
+        pairs = list(_walk_database(engine, CORE_SCHEMA))
+        _assert_absent(canaries, iter(pairs), "core database")
+        values += len(pairs)
+
+    state_pairs = list(_walk(STATE))
+    _assert_absent(canaries, iter(state_pairs), "core state")
+    return values + len(state_pairs)
 
 
 def _run_full_pipeline(narrative: str, notes: str | None, client: TestClient,
@@ -297,7 +413,19 @@ def test_a_canary_planted_in_a_narrative_never_reaches_the_core(
     assert core_client.get("/health").json()["submissions"] == 1
     assert result["submission"].tokens, "nothing was tokenised, so nothing was proven"
 
-    # -- every value reachable in core state --------------------------------
+    # -- the store of record: every table, every column, every row ----------
+    from marsad_core.db.base import CORE_SCHEMA
+
+    engine = core_database(core_client)
+    assert engine is not None, "this test must run against the database-backed store"
+    database_values = list(_walk_database(engine, CORE_SCHEMA))
+    assert database_values, (
+        "the core database held no values at all after a submission — the sweep would "
+        "pass vacuously, which is the failure mode this whole file exists to avoid"
+    )
+    _assert_absent(canaries, iter(database_values), "core database")
+
+    # -- and the in-memory index rebuilt from it -----------------------------
     from marsad_core.main import STATE
     _assert_absent(canaries, _walk(STATE), "core state")
 
@@ -345,8 +473,7 @@ def test_extraction_provenance_never_crosses_the_boundary(
     assert confirmed.narrative_normalised, "the normalised copy must exist to be tested"
 
     # -- and none of it crossed ---------------------------------------------
-    from marsad_core.main import STATE
-    _assert_absent(canaries, _walk(STATE), "core state")
+    assert sweep_core_store(canaries, core_client) > 0
 
     payload = result["submission"].model_dump_json()
     for provenance in ("evidence", "span", "confidence", "third_party", "affected_services",
@@ -374,8 +501,7 @@ def test_an_arabic_canary_never_reaches_the_core_in_either_form(
     assert canaries.arabic_normalised in result["confirmed"].narrative_normalised
     assert result["response"]["accepted"] is True
 
-    from marsad_core.main import STATE
-    _assert_absent(canaries, _walk(STATE), "core state")
+    assert sweep_core_store(canaries, core_client) > 0
     _assert_absent(canaries, _walk(result["response"], "POST /v1/submissions"),
                    "core API response")
     for route in ("/health", "/v1/correlations"):
@@ -409,22 +535,108 @@ def test_a_plaintext_indicator_is_replaced_by_a_token_that_still_correlates(
     assert other["response"]["correlations"], "the two firms did not correlate"
 
 
-def test_core_still_has_no_database_this_sweep_would_miss():
+def test_the_sweep_can_find_a_leak_planted_in_a_database_row(canaries, core_client):
     """
-    The sweep above walks core's in-memory state exhaustively, which is the whole
-    store today. The roadmap puts Postgres next, and a database added without
-    extending this sweep would leave the canary test quietly checking a store that no
-    longer holds anything. So: fail the day one appears.
+    The database sweep, proven able to catch what it is looking for.
+
+    This replaces the placeholder that used to fail the build when a database
+    appeared. The database is here now, so the guard is no longer "there is no store
+    to sweep" but "the sweep of the store demonstrably works": plant narrative in a
+    real row of a real table, and require the sweep to find it, in the right table, in
+    the right column, with the defect message.
+
+    The leak is planted the way a real one would arrive — a column holding text that
+    came from inside an institution — rather than by monkeypatching the sweep.
     """
-    core_sources = list((ROOT / "services" / "core" / "marsad_core").rglob("*.py"))
-    assert core_sources
-    users = [p.relative_to(ROOT) for p in core_sources
-             if "sqlalchemy" in p.read_text(encoding="utf-8").lower()]
-    assert not users, (
-        f"core now uses a database ({users}). Extend the canary sweep to iterate every "
-        f"table and every column of it before removing this assertion — otherwise the "
-        f"central privacy claim is no longer being checked where the data actually is."
-    )
+    from marsad_core.db.base import CORE_SCHEMA
+    from marsad_core.db.models import Submission
+    from marsad_core.db.session import build_sessionmaker, session_scope
+
+    engine = core_database(core_client)
+    assert engine is not None
+
+    # A submission first, so the table is not empty for reasons unrelated to the leak.
+    _run_full_pipeline("Routine phishing report at 2026-08-19 08:00 UTC from "
+                       "unrelated-domain.com. Severity: HIGH.", None, core_client,
+                       "psd_canary06")
+
+    factory = build_sessionmaker(engine)
+    with session_scope(factory) as session:
+        row = session.scalars(sa.select(Submission)).first()
+        assert row is not None
+        # institution_ref is a real column of a real table; a defect that wrote
+        # narrative into a text column would look exactly like this.
+        row.institution_ref = canaries.prose
+
+    try:
+        found = [(path, text) for path, text in _walk_database(engine, CORE_SCHEMA)
+                 if canaries.prose.lower() in text.lower()]
+        assert found, (
+            "the database sweep did not find a canary sitting in a table row. Every "
+            "database assertion in this file is therefore meaningless."
+        )
+        path = found[0][0]
+        assert "submissions" in path and "institution_ref" in path, (
+            f"the sweep found the leak but reported the wrong location: {path}"
+        )
+        with pytest.raises(pytest.fail.Exception, match="CANARY ESCAPED THE BOUNDARY"):
+            _assert_absent(canaries, _walk_database(engine, CORE_SCHEMA), "core database")
+    finally:
+        with session_scope(factory) as session:
+            row = session.scalars(sa.select(Submission)).first()
+            if row is not None:
+                row.institution_ref = "psd_canary06"
+
+    # clean again
+    _assert_absent(canaries, _walk_database(engine, CORE_SCHEMA), "core database")
+
+
+def test_the_sweep_reflects_tables_rather_than_trusting_the_orm(core_client):
+    """
+    A table created outside the ORM must still be swept.
+
+    This is the difference between asking the database what it holds and asking the
+    application what it meant to create. A leak would most plausibly arrive in exactly
+    such a table — added by a migration, a library, or by hand — and a sweep driven by
+    `CoreBase.metadata` would walk straight past it.
+    """
+    from marsad_core.db.base import CORE_SCHEMA
+
+    engine = core_database(core_client)
+    assert engine is not None
+
+    with engine.begin() as connection:
+        connection.execute(sa.text(
+            f"CREATE TABLE {CORE_SCHEMA}.rogue_notes (id INTEGER PRIMARY KEY, body TEXT)"))
+        connection.execute(sa.text(
+            f"INSERT INTO {CORE_SCHEMA}.rogue_notes (body) VALUES ('smuggled narrative')"))
+
+    try:
+        swept = dict(_walk_database(engine, CORE_SCHEMA))
+        assert any("rogue_notes" in path for path in swept), (
+            "the sweep missed a table that is not declared on CoreBase — it is "
+            "trusting the ORM instead of reading the database"
+        )
+        assert "smuggled narrative" in swept.values()
+    finally:
+        with engine.begin() as connection:
+            connection.execute(sa.text(f"DROP TABLE {CORE_SCHEMA}.rogue_notes"))
+
+
+def test_the_in_memory_backend_is_still_swept(canaries, english_narrative,
+                                              core_client_memory):
+    """
+    The fast backend is kept so the suite stays quick, and it must not become a place
+    a canary can survive. Same pipeline, same assertions, no database.
+    """
+    result = _run_full_pipeline(english_narrative, None, core_client_memory, "psd_canary07")
+    assert result["response"]["accepted"] is True
+    assert core_database(core_client_memory) is None, "this fixture must run in memory"
+
+    from marsad_core.main import STATE
+    assert STATE["store"].name == "memory"
+    assert STATE["store"].submission_count() == 1
+    _assert_absent(canaries, _walk(STATE), "core state (memory backend)")
 
 
 def test_the_sweep_can_actually_find_a_leak(canaries, core_client):

@@ -237,6 +237,13 @@ def build_llm(kind: str = "stub", **kw) -> LLMProvider:
 
 
 __all__ = [
-    "LLMProvider", "StubProvider", "OpenAICompatibleProvider", "LLMResponseError",
-    "PROVIDERS", "build_llm", "REQUEST_TIMEOUT_SECONDS", "TEMPERATURE", "SYSTEM_PROMPT",
+    "PROVIDERS",
+    "REQUEST_TIMEOUT_SECONDS",
+    "SYSTEM_PROMPT",
+    "TEMPERATURE",
+    "LLMProvider",
+    "LLMResponseError",
+    "OpenAICompatibleProvider",
+    "StubProvider",
+    "build_llm",
 ]

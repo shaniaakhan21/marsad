@@ -261,6 +261,50 @@ def test_the_single_host_limitation_is_recorded_rather_than_claimed_away():
         )
 
 
+def test_the_core_cannot_reach_an_institutions_database():
+    """
+    The separation that matters most, at the layer that cannot be refactored away.
+
+    The edge database holds narrative, analyst notes, the attacker's email body and
+    extraction provenance quoting the narrative verbatim. Application code deciding
+    not to read it is not the control; having no route to it is.
+    """
+    for institution in ("almaha", "gulfsec"):
+        outcome = probe("core", f"edge-db-{institution}", port=5432, path="/")
+        assert outcome["outcome"] in (DNS_FAILURE, NETWORK_FAILURE), (
+            f"the core reached {institution}'s database: {outcome}. Every privacy "
+            f"guarantee in this repository is void if this is reachable."
+        )
+
+
+def test_a_connector_cannot_reach_the_core_database():
+    """
+    And the reverse. An institution has no business reading the operator's store,
+    which holds every other institution's submissions.
+    """
+    outcome = probe("connector-almaha", "core-db", port=5432, path="/")
+    assert outcome["outcome"] in (DNS_FAILURE, NETWORK_FAILURE), outcome
+
+
+def test_one_institution_cannot_reach_anothers_database():
+    """Competitors. The plaintext store is the last thing that may be shared."""
+    outcome = probe("connector-almaha", "edge-db-gulfsec", port=5432, path="/")
+    assert outcome["outcome"] in (DNS_FAILURE, NETWORK_FAILURE), outcome
+
+
+def test_each_database_is_a_separate_instance_with_its_own_volume():
+    """
+    A shared volume would be a shared database wearing two names, and the network
+    isolation above would prove nothing.
+    """
+    core_db = _networks_of("core-db")
+    edge_db = _networks_of("edge-db-almaha")
+    assert core_db and edge_db
+    assert not (core_db & edge_db), (
+        f"the core and edge databases share network(s) {core_db & edge_db}"
+    )
+
+
 # ================================================================ the one route
 
 

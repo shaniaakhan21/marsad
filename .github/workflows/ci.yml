@@ -27,7 +27,7 @@ jobs:
         run: |
           pip install -e packages/contracts
           pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx \
-                      sqlalchemy aiosqlite openpyxl camel-tools pytest ruff
+                      sqlalchemy "psycopg[binary]" alembic openpyxl camel-tools pytest ruff
 
       - name: Full suite
         run: python -m pytest tests/ -v
@@ -37,10 +37,24 @@ jobs:
       - name: Canary — nothing from inside the institution reaches the core
         run: python -m pytest tests/test_canary.py -v
 
+      # The separation that would be destroyed most quietly: it is a configuration,
+      # invisible in code review, and sharing one database makes narrative reachable
+      # from the core without a line changing.
+      - name: Persistence — edge and core databases stay separate
+        run: python -m pytest tests/test_persistence.py -v
+
+      - name: Migrations run from empty to current, both databases
+        run: |
+          rm -f /tmp/ci_core.db /tmp/ci_edge.db
+          (cd services/core && MARSAD_CORE_DATABASE_URL=sqlite:////tmp/ci_core.db \
+             alembic upgrade head)
+          (cd services/connector && MARSAD_DATABASE_URL=sqlite:////tmp/ci_edge.db \
+             alembic upgrade head)
+
       # The repo does not lint clean; the rule is a ratchet, not a gate. See CLAUDE.md.
       - name: Lint ratchet (must not exceed the recorded baseline)
         run: |
-          BASELINE=39
+          BASELINE=30
           COUNT=$(ruff check packages services tests --output-format=concise | grep -c ':' || true)
           echo "ruff findings: $COUNT (baseline $BASELINE)"
           if [ "$COUNT" -gt "$BASELINE" ]; then
@@ -64,6 +78,22 @@ jobs:
 
       - name: Build and start the federation
         run: docker compose up -d --build
+
+      # The connector image once shipped without camel-tools and would have failed at
+      # startup while every test passed. A container that boots is now checked, not
+      # assumed.
+      - name: Every container actually booted
+        run: |
+          sleep 10
+          docker compose ps
+          for service in core connector-almaha connector-gulfsec connector-emcap; do
+            state=$(docker compose ps --status running --services | grep -c "^$service$" || true)
+            if [ "$state" -ne 1 ]; then
+              echo "::error::$service is not running"
+              docker compose logs "$service" --tail=60
+              exit 1
+            fi
+          done
 
       - name: Wait for the stack
         run: |

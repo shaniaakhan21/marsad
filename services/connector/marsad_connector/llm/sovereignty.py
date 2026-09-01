@@ -193,6 +193,12 @@ def assert_sovereign(
 
 
 __all__ = [
-    "SovereigntyError", "PRIVATE_SUFFIXES", "ALWAYS_LOCAL", "VENDOR_KEY_PREFIXES",
-    "SOVEREIGN_MODE_ENV", "check_api_key", "check_endpoint", "assert_sovereign",
+    "ALWAYS_LOCAL",
+    "PRIVATE_SUFFIXES",
+    "SOVEREIGN_MODE_ENV",
+    "VENDOR_KEY_PREFIXES",
+    "SovereigntyError",
+    "assert_sovereign",
+    "check_api_key",
+    "check_endpoint",
 ]

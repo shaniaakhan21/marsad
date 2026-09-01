@@ -1,7 +1,8 @@
-.PHONY: install test test-network test-e2e test-boundary run down demo lint
+.PHONY: install test test-network test-e2e test-boundary run down demo lint migrate
 install:
 	pip install -e packages/contracts
-	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy aiosqlite openpyxl camel-tools pytest ruff
+	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
+	  "psycopg[binary]" alembic openpyxl camel-tools pytest ruff
 	cd apps/web && npm install && npx playwright install --with-deps chromium
 test:
 	python -m pytest tests/ -v
@@ -17,6 +18,12 @@ test-boundary:
 	  status=$$?; docker compose down; exit $$status
 lint:
 	ruff check packages services tests
+# Both databases, empty to current, in one command. Two separate migration trees on
+# purpose — one history spanning both sides would invite pointing them at one database.
+migrate:
+	cd services/core && alembic upgrade head
+	cd services/connector && alembic upgrade head
+
 run:
 	docker compose up --build
 down:

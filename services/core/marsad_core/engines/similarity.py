@@ -96,7 +96,7 @@ class WeightedJaccardEngine(JaccardEngine):
         if not union:
             return SimilarityResult(0.0, (), True, self.name)
 
-        w = lambda t: self.idf.get(t, 1.0)  # noqa: E731
+        w = lambda t: self.idf.get(t, 1.0)
         num = sum(w(t) for t in inter)
         den = sum(w(t) for t in union)
         return SimilarityResult(

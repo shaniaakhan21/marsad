@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +23,18 @@ class Settings(BaseSettings):
     core_url: str = "http://core:8000"
     token_key: str = ""
     tokeniser: str = "hmac"          # hmac | oprf
-    database_url: str = "sqlite+aiosqlite:///./connector.db"
+    #: The institution's own store. Holds plaintext, and the core has no route to
+    #: it — separate instance, separate schema, separate MetaData. See db/base.py.
+    database_url: str = "sqlite:///./connector.db"
+
+    #: "sql" or "memory". The in-memory backend keeps the test suite fast.
+    store: str = "sql"
+    auto_create_schema: bool = True
+
+    #: Days before narrative, analyst notes, the attacker's email body and every
+    #: extraction provenance row expire. Provenance quotes the narrative verbatim, so
+    #: it expires with it and never after it. See db/retention.py.
+    retention_days: int = 90
     llm_provider: str = "stub"       # stub | openai_compatible
 
     #: OpenAI-compatible root (the URL ending in /v1) of a model served inside the

@@ -286,4 +286,4 @@ def plan() -> dict:
     }
 
 
-__all__ = ["Milestone", "Phase", "PHASES", "plan"]
+__all__ = ["PHASES", "Milestone", "Phase", "plan"]
