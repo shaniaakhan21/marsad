@@ -503,6 +503,19 @@ incident, paraphrases service names out of the canonical vocabulary, inflates se
 reads through Arabic negation, drops indicators, once extracted our own fence marker as
 an indicator, and once answered an Arabic narrative in Chinese.
 
+Two follow-up experiments are recorded there too. **The noise floor of this fixture
+set**: Ollama at `temperature: 0` is deterministic once warm — runs 2–5 of five
+identical passes were field-for-field identical, and only the first run after a model
+load differed (12.4% of fields). So a four-model benchmark needs two passes per model,
+one discarded, not dozens. And **vocabulary versus judgement**: constraining
+`affected_services` to its existing 20-label vocabulary moved it 12/30 → 20/30 at no
+latency cost, while constraining `techniques` to the 697-value canonical ATT&CK list
+cost **57×** (1663s mean vs 29.3s) and would have raised that field from 6/30 to at
+most 7/30, because 17 of 30 failures are the model choosing real identifiers for the
+wrong attack. Grammar fixes spelling; it cannot fix judgement. The slowest fixtures
+under constraint were the *least informative* ones — worst-case latency lands exactly
+where an analyst is least willing to wait.
+
 Six breakages are recorded there rather than worked around — including that Ollama
 rejects the production schema outright (its grammar compiler cannot parse `\d`), that
 `strict: true` does not validate (95 of 203 confidence values fell outside the declared

@@ -265,3 +265,204 @@ The 16% run-to-run churn is itself a new finding, and a caution for any future
 multi-model benchmark: at this fixture count, a single run cannot resolve differences
 smaller than about ten points. Comparing models on 30 self-authored narratives, once
 each, would produce a ranking that is mostly noise.
+
+---
+
+# Experiment 1 — the noise floor of this fixture set
+
+Five identical passes: same model, same prompt, same schema, same fixtures, nothing
+changed between runs.
+
+| | run 1 | run 2 | run 3 | run 4 | run 5 |
+|---|---|---|---|---|---|
+| English | 56.4% | 57.9% | 57.9% | 57.9% | 57.9% |
+| Arabic | 58.6% | 57.1% | 57.1% | 57.1% | 57.1% |
+
+## This corrects an earlier claim in this document
+
+The "16% of fields change at temperature 0" reported after the second run was real but
+misattributed. Measured cleanly, the pairwise field-level churn matrix is:
+
+```
+        run1  run2  run3  run4  run5
+run1     0.0  12.4  12.4  12.4  12.4
+run2    12.4   0.0   0.0   0.0   0.0
+run3    12.4   0.0   0.0   0.0   0.0
+run4    12.4   0.0   0.0   0.0   0.0
+run5    12.4   0.0   0.0   0.0   0.0
+```
+
+**Runs 2–5 are field-for-field identical.** Only the first run differs. This is not
+ongoing nondeterminism; it is a **cold-start effect**, confirmed directly rather than
+inferred: after `ollama stop` forced a reload, the first extraction differed from the
+second, and the second and third were byte-identical.
+
+So Ollama at `temperature: 0` **is** deterministic — once the model is warm.
+
+## The number, published
+
+**Minimum resolvable difference on this fixture set at 95% confidence:**
+
+| Protocol | MRD |
+|---|---|
+| Warm runs, first run after model load discarded | **~0 pts** — a single warm run resolves any real difference |
+| First run after model load included | **~1.5 pts** |
+
+The naive statistic — SD 0.21 across five runs, giving 0.6pt at n=1 — is misleading,
+because the variance is not random scatter but one outlier run. The two-regime
+statement above is the operational one.
+
+## What a four-model benchmark costs
+
+**Two passes per model: one discarded warm-up, one measured.** Eight passes for four
+models, ~4 hours at ~30s per extraction on this CPU-only host. That is affordable,
+which would not have been the conclusion from the contaminated 16% figure — that
+number implied dozens of runs per model.
+
+The protocol point matters more than the arithmetic: **discard the first run after
+every model load.** Without it a comparison carries 12.4% field churn that has nothing
+to do with model quality, and differences below ~1.5 points are unresolvable. The
+before/after comparison earlier in this document was contaminated in exactly that way,
+and its "+3.6 / +8.6 points" should be read as a cold-start artefact plus one fixture
+that stopped timing out.
+
+## Per-field instability
+
+Across the five runs, cells with more than one distinct value:
+
+| Field | Unstable |
+|---|---|
+| techniques | **14/30 = 47%** |
+| affected_services | 3/30 = 10% |
+| third_party_dependencies | 3/30 = 10% |
+| category | 2/30 = 7% |
+| detected_at | 2/30 = 7% |
+| severity | 1/30 = 3% |
+| indicators | 1/30 = 3% |
+
+All of it is contributed by run 1. The field that scores worst — `techniques` at 4/20
+— is also by far the least stable across a cold start.
+
+---
+
+# Experiment 2 — vocabulary versus judgement
+
+`severity` is enum-constrained and scores 19/30. `affected_services` (12/30) and
+`techniques` (6/30) were generated freely. Is that difference causal?
+
+It is, for one of them, and the cost of finding out is the more interesting result.
+
+## Lead finding: constrained decoding is not free, and it fails worst where you need it most
+
+The headline number is that constraining `techniques` to the 697-value canonical
+ATT&CK list made extraction **57× slower** — a mean of 1663s against a 29.3s baseline,
+on the same fixtures and the same model. But the shape of the cost matters more than
+the multiplier.
+
+**The slowest fixtures were the least informative ones.**
+
+| Fixture | What it contains | Constrained latency |
+|---|---|---|
+| `10_almost_nothing` | "Something odd happened with our email service. Still looking into it." | **4183s** (70 min) |
+| `11_typos_chat` | chat-register fragment, typos, one domain | **4103s** (68 min) |
+| `14_run_on` | run-on sentence, no punctuation | 3806s |
+| `01_clean_phishing` | complete, well-formed report | 2764s (includes one-off grammar compile) |
+| `02_ransomware_critical` | complete, well-formed report | 169s |
+
+This is mechanistically legible. Constrained decoding prunes the token distribution to
+what the grammar permits; when the narrative gives the model a strong signal, most of
+the 697 branches die immediately and generation is quick. When the narrative says
+almost nothing, nothing prunes them, and the decoder grinds through a 697-branch
+grammar with no evidence to collapse it.
+
+The operational consequence is worse than the latency: **worst-case latency lands on
+the least informative reports.** A sparse, hurried, half-written incident note is
+precisely when an analyst is most uncertain, most time-pressed and least willing to
+wait — and it is exactly the input that makes the system slowest. A tool that degrades
+most sharply where it helps least is a design problem, not a performance footnote.
+
+There is also a **one-off grammar-compilation cost of ~46 minutes** for the 697-value
+enum, paid on the first request after the schema changes.
+
+"Constrained decoding is free" is a widely held assumption. On a 3B model on CPU, with
+a realistically sized vocabulary, it is not.
+
+## Claim 1 — constraining a small vocabulary is cheap, and it works
+
+`affected_services` constrained to the repo's existing 20-label vocabulary, everything
+else untouched:
+
+| | Baseline (warm) | Services enum (warm) | |
+|---|---|---|---|
+| `affected_services` | 12/30 | **20/30** | **+8 fixtures** |
+| English overall | 57.9% | **64.3%** | +6.4 pts |
+| Arabic overall | 57.1% | 57.1% | +0.0 pts |
+| Mean latency | 29.3s | **29.2s** | free |
+
+Against the noise floor from experiment 1 (~1.5 pts including a cold run, ~0 for warm
+runs), +8 fixtures on the constrained field is decisively real.
+
+**Latency was unchanged.** 29.2s against 29.3s. So the 57× penalty is not a property of
+constrained decoding as such — it is a property of *vocabulary size*, and the threshold
+between 20 values and 697 is not gradual.
+
+Two honest qualifications. The service vocabulary is the repo's own and the fixtures'
+expected labels are drawn from it, so this measures "does constraining generation to
+the vocabulary the system actually consumes eliminate format errors" — which it does —
+and not "does the model know which service was affected". And the English gain (9/20 →
+16/20) dwarfs the Arabic one (3/10 → 4/10): constraint fixed English *spelling*
+(`CORE_BANKING`, `PAYMENT_GATEWAY`, `KYC` — case and underscore variants of real
+members) while Arabic failures were more often the model choosing the wrong service
+entirely, which no grammar reaches.
+
+`techniques` moved 6/30 → 7/30 in this run despite not being constrained. That is
+incidental drift from a changed grammar, not an effect; it should not be read as one.
+
+## Claim 2 — constraining a large vocabulary costs 57×, and is unviable here
+
+Measured, then abandoned: 15 extractions took ~7 hours, projecting **42 hours** for the
+3-pass experiment. Mean 1663s, worst case 4183s, against a 29.3s baseline.
+
+The run was stopped rather than completed. Reporting an unviable configuration as
+unviable, with the numbers, is the result — finishing it would have cost two days to
+learn the same thing more precisely.
+
+## Claim 3 — grammar's ceiling on techniques is one fixture, and it is not worth 57×
+
+This was answered analytically from data already in hand, which is why the 42 hours
+were not spent. Classifying every technique ID the model emitted in the warm
+deterministic run against the canonical 697:
+
+| | |
+|---|---|
+| Fixtures already correct | 6/30 |
+| Wrong, **every emitted ID already valid ATT&CK** — grammar is inert | **17/30** |
+| Wrong, contains invented IDs, but deleting them still leaves the wrong set | 6/30 |
+| Wrong, and deleting invented IDs **would** yield the right set | **1/30** |
+
+At the ID level, 61 of 89 wrong identifiers (69%) are inventions a grammar would
+eliminate — `T1044`, `T1089`, `T1158.001`, `T1059.014`, none of which exist. That
+number is true and flattering.
+
+At the level scoring actually operates on — set equality per fixture — **a perfect
+ATT&CK grammar takes techniques from 6/30 to at most 7/30.** One fixture. And that one
+is `ar_10_negation`, whose expected answer is *no techniques at all*: the model
+invented IDs for a narrative that explicitly states no data was leaked and the provider
+was not compromised, so deleting the fabrications leaves an empty set that happens to
+be right.
+
+**Grammar fixes spelling. It cannot fix judgement.** 17 of 30 fixtures are the model
+selecting real, well-formed ATT&CK identifiers that describe a different attack.
+Nothing in the schema layer can reach that, and it is the majority of the failure.
+
+## Future work — hierarchical constraint
+
+The obvious engineering answer, recorded as future work and not as a rescue: constrain
+in two stages. Pick a parent technique from the 222-value parent list, then pick a
+sub-technique from within the chosen parent — at most 30 or so options. Two small
+grammars instead of one 697-branch grammar, each in the size regime that Claim 1 shows
+is free.
+
+That would make the technique enum affordable. It would not make it worthwhile here:
+Claim 3 says the ceiling is one fixture. It is worth doing when the field to be
+constrained has failures that are actually spelling, as `affected_services` did.
