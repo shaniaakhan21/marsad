@@ -256,3 +256,59 @@ export interface SupervisorReport {
   logged_as_intelligence: boolean;
   extraction_blocked: boolean;
 }
+
+
+/* ------------------------------------------------------------------ *
+ * A2 extraction — free-text intake. Mirrors
+ * marsad_connector/agents/a2_extract.py. None of this crosses the
+ * boundary: it is the local review surface an analyst confirms.
+ * ------------------------------------------------------------------ */
+
+export interface TrackedField {
+  name: string;
+  value: unknown;
+  confidence: number;
+  evidence: string | null;
+  span: [number, number] | null;
+  needs_attention: boolean;
+  reason: string;
+  edited: boolean;
+  present: boolean;
+  /** Values refused outright rather than flagged — see a2_extract._locatable_indicators. */
+  rejected: unknown[];
+}
+
+export interface ExtractionDraft {
+  draft_id: string;
+  method: string;
+  created_at: string;
+  narrative: string;
+  fields: Record<string, TrackedField>;
+  needs_attention: string[];
+  missing: string[];
+  confidence_threshold: number;
+  autonomy: "PROPOSE_CONFIRM";
+  confirmed: false;
+  narrative_normalised: string;
+  language: "ENGLISH" | "ARABIC" | "MIXED";
+  /** True when a language model proposed these fields rather than the cue tables. */
+  model_proposed: boolean;
+  /**
+   * When true, confirm() refuses unless the analyst explicitly passes an indicators
+   * edit. A model-proposed indicator becomes a token in a shared matching space that
+   * nobody downstream can review, so it needs positive sign-off. See CLAUDE.md.
+   */
+  requires_indicator_confirmation: boolean;
+}
+
+export interface ConfirmResult {
+  incident_id: string;
+  confirmed_by: string;
+  edited_fields: string[];
+  severity: string;
+  indicators: { type: string; value: string }[];
+  techniques: string[];
+  category: string | null;
+  affected_services: string[];
+  third_party_dependencies: string[];
+}

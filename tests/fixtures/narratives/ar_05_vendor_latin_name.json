@@ -1,0 +1,19 @@
+{
+  "id": "ar_05_vendor_latin_name",
+  "language": "ar",
+  "messiness": "code-switched: Arabic prose, Latin vendor name",
+  "narrative": "أبلغ مزود Nexa KYC عن اختراق المزود بتاريخ 2026-02-20 11:00 UTC أثّر على سجلات التحقق من الهوية. تأثرت خدمة اعرف عميلك لدينا. الأثر: متوسط.",
+  "expected": {
+    "severity": "MEDIUM",
+    "category": "THIRD_PARTY_COMPROMISE",
+    "affected_services": [
+      "kyc service"
+    ],
+    "third_party_dependencies": [
+      "Nexa KYC"
+    ],
+    "indicators": null,
+    "techniques": null,
+    "detected_at": "2026-02-20T11:00:00+00:00"
+  }
+}

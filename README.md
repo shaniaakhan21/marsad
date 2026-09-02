@@ -1,371 +1,268 @@
 # MARSAD · مرصد
 
-**Privacy-preserving cyber-incident correlation for UAE capital markets.**
-UAE Hackathon 2026 · Track 1 HackArena · Challenge #9, Securities and Commodities Authority
-(now the **UAE Capital Market Authority**) · Vertech Creations FZCO
+**Privacy-preserving cross-institution incident correlation, with a self-hosted LLM
+running inside the data-residency boundary.**
 
-Institutions gain collective situational awareness — coordinated attacks spanning
-several firms, concentration risk on shared providers — **without disclosing
-incident detail to a competitor**.
+Financial institutions learn they are being hit by the same attacker — coordinated
+campaigns, concentration risk on shared providers — **without disclosing incident
+detail to a competitor**. Narrative, plaintext indicators and PII never leave the
+firm. Only keyed tokens, ATT&CK technique IDs and hour-bucketed metadata cross. The
+language model that reads the analyst's prose runs on the institution's own hardware;
+a provider pointed at a hosted vendor is refused at construction, not at request time.
 
-**109 tests passing end to end** — 96 backend + 2 network + 11 Playwright e2e
-against the real UI. See [Test coverage](#test-coverage).
+<!--
+  The GIF is not committed yet. Until docs/demo.gif exists this renders as a broken
+  image on GitHub — drop the file in and it works with no further edits.
+  Produce it with:  make record   then follow docs/recording.md
+-->
+![MARSAD guided demo — two firms, two languages, one attacker, and nothing sensitive crossing](docs/demo.gif)
 
----
-
-## Contents
-
-- [The one idea everything serves](#the-one-idea-everything-serves)
-- [Quick start](#quick-start)
-- [Layout](#layout)
-- [The three swap points](#the-three-swap-points)
-- [Test coverage](#test-coverage)
-- [Design decisions worth knowing before you change things](#design-decisions-worth-knowing-before-you-change-things)
-- [Roadmap](#roadmap)
-- [Government data this runs on](#government-data-this-runs-on)
-- [Honest scope](#honest-scope)
+<sub>Ninety seconds, end to end: an English filing, an Arabic one on rotated
+infrastructure, a correlation that fires on tradecraft, the k-anonymity gate holding,
+exposure priced in AED, and an injection quarantined. Reproduce it with
+`make record` — see [docs/recording.md](docs/recording.md).</sub>
 
 ---
 
-## The one idea everything serves
-
-> Narrative, plaintext indicators and PII never leave the institution.
-> Only keyed tokens, technique sets and coarse metadata cross the boundary.
-
-Two consequences shape the whole repository:
-
-1. **The edge/core split is physical, not conceptual.** `services/connector` runs
-   inside an institution's perimeter and is the only code that touches plaintext.
-   `services/core` receives boundary payloads and could not reconstruct an
-   incident if it wanted to. They are separate deployables that talk over HTTP.
-2. **The boundary contract is a type, not a convention.** If a field is not
-   declared in `packages/contracts/marsad_contracts/boundary.py`, it cannot cross.
-   Adding one is a security review, not a routine change.
-
-An institution's security team should be able to audit **two files** and be
-satisfied: the contract above, and `services/connector/marsad_connector/agents/a3_redact.py`.
-Both are deliberately short.
+Built for **UAE Hackathon 2026 · Track 1 HackArena · Challenge #9**, Securities and
+Commodities Authority — now the **UAE Capital Market Authority** — under **Theme 4,
+Digital Trust & Cyber-Secure Nation**. The privacy parameters are derived from
+published CBUAE and CMA figures rather than chosen: the k-anonymity floor per sector
+comes from real licensee cohort sizes, and exposure is priced in AED against two
+independent government sources that reconcile within 2%.
 
 ---
 
-## Quick start
+## Results
 
-```bash
-make install          # contracts (editable) + service deps + Playwright browser
-make test             # backend unit tests — the privacy and correlation guarantees
-make test-network     # the handful of tests that hit a real UAE government portal
-make test-e2e         # Playwright smoke suite against the real UI, see below
-make run              # docker compose: 3 connectors + core + web
-make demo             # drive the full scenario through the real services
-```
+Every figure below carries its caveat in the same row. None of them should be quoted
+without it.
 
-Then open <http://localhost:3000> and press **▶ Run the demo**.
-
-Without Docker:
-
-```bash
-# core
-cd services/core && uvicorn marsad_core.main:app --port 8000
-
-# one connector per institution (each needs its own port + ref)
-cd services/connector
-MARSAD_INSTITUTION_REF=psd_almaha01 MARSAD_SECTOR=BANK MARSAD_SIZE_BAND=LARGE \
-MARSAD_CORE_URL=http://localhost:8000 MARSAD_TOKEN_KEY=dev-only-key-16plus \
-  uvicorn marsad_connector.main:app --port 8101
-```
-
----
-
-## Layout
-
-```
-packages/contracts/         the boundary contract — source of truth, both languages
-services/connector/         EDGE · the only service that sees plaintext
-  marsad_connector/
-    crypto/tokeniser.py     Tokeniser protocol · HMAC (proto) → OPRF (prod)
-    agents/a3_redact.py     THE trust anchor — builds the outbound payload
-    agents/base.py          Agent protocol with explicit autonomy levels
-    llm/provider.py         LLMProvider protocol · offline stub by default
-services/core/              CORE · never sees plaintext
-  marsad_core/
-    engines/correlation.py  exact-token + technique matching, k-anonymity gate
-    engines/similarity.py   SimilarityEngine · Jaccard → enclave → SMPC
-    services/concentration.py  third-party concentration risk (deterministic)
-apps/web/                   Next.js 14 · App Router · Tailwind · TypeScript
-tests/                      the tests that encode the product's claims
-scripts/seed_demo.py        runs the scenario against live services
-```
-
----
-
-## The three swap points
-
-Upgrading from prototype to production is changing a binding, never a rewrite.
-Each is a protocol with a working prototype implementation and a documented target.
-
-| Concern | Today | Target | Where |
-|---|---|---|---|
-| Tokenisation | `HmacTokeniser` | `OprfTokeniser` (RFC 9497 VOPRF, HSM threshold custody) | `crypto/tokeniser.py` |
-| Similarity | `JaccardEngine` | `EnclaveEngine` (attested TEE) → `SmpcEngine` | `engines/similarity.py` |
-| LLM | `StubProvider` (offline) | sovereign-hosted open-weight model | `llm/provider.py` |
-
-### Why HMAC is not good enough
-
-Indicators are low-entropy: the whole IPv4 space is 2³² values. Anyone holding an
-HMAC token and the key can brute-force the input in seconds, and one shared key
-across institutions puts the key holder in exactly the position we promise nobody
-occupies. An OPRF removes it — the institution learns `PRF(k, x)` without learning
-`k`, the evaluator never sees `x`, and threshold custody means no single party can
-evaluate alone. **Do not process real institutional data until this is done.**
-
----
-
-## Test coverage
-
-Three separate suites, kept separate on purpose — a backend guarantee and
-"does the pitch demo actually render this" are different claims, and
-inflating one number by mixing them would hide which layer actually broke.
-
-| Suite | Command | Result | Proves |
-|---|---|---|---|
-| Backend | `make test` | **96 passed**, 2 deselected | The privacy and correlation guarantees, offline |
-| Network | `make test-network` | **2 passed** | The same fetchers, against a real UAE government portal |
-| End-to-end | `make test-e2e` | **11 passed** | Every claim the pitch makes is actually on screen |
-
-<sub>Total: **109 passed**. Last run: 2026-08-20, `main`.</sub>
-
-### What the backend tests prove
-
-`make test` is not coverage theatre — each test encodes a claim we make to a
-regulator or a bank's counsel.
-
-- narrative, analyst notes and plaintext indicators never appear in the payload
-- the contract **rejects** an unknown field, so a typo cannot smuggle data across
-- the leak guard trips loudly if a future refactor reintroduces narrative
-- the same indicator tokenises identically across institutions — without this,
-  correlation silently never fires
-- canonicalisation survives analyst formatting (`Evil-Domain[.]com`, spaced IBANs)
-- indicator types are domain-separated, so an account and an IBAN cannot collide
-- exact token match is detected with no plaintext anywhere
-- **technique similarity catches an attacker who rotated infrastructure** — the
-  capability indicator-sharing platforms lack
-- one campaign is never double-reported as two correlations
-- a duplicate submission cannot inflate a campaign's apparent size
-- a rung-0 notice reveals peer *count*, never peer *identity*
-- k-anonymity gates aggregate publication while still notifying the parties
-- concentration scoring ranks a non-substitutable shared provider highest, and
-  discounts inferred dependency edges
-- ADGM (24h), DFSA (72h), CMA (48h) and CBUAE (24h) deadlines are exact
-  arithmetic from detection, not just in-scope — a missed deadline is legal
-  exposure, so every clock is asserted by value
-
-<details>
-<summary><b>Terminal output</b> — <code>make test</code></summary>
-
-```text
-$ make test
-======================= test session starts =======================
-platform darwin -- Python 3.12.6, pytest-8.3.4
-collecting ... collected 98 items / 2 deselected / 96 selected
-
-tests/test_agents.py ..........................                 [ 27%]
-tests/test_boundary.py .............                             [ 40%]
-tests/test_fetchers.py ................                          [ 56%]
-tests/test_open_data.py .......................................  [100%]
-
-======================= 96 passed, 2 deselected in 0.74s =======================
-```
-
-</details>
-
-<details>
-<summary><b>Terminal output</b> — <code>make test-network</code></summary>
-
-```text
-$ make test-network
-collecting ... collected 98 items / 96 deselected / 2 selected
-
-tests/test_fetchers.py::test_ajman_catalogue_is_genuinely_reachable_live PASSED
-tests/test_fetchers.py::test_tdra_workbook_is_genuinely_parsed_live PASSED
-
-======================= 2 passed, 96 deselected in 2.09s =======================
-```
-
-</details>
-
-### What the end-to-end suite proves
-
-`apps/web` had zero tests before this suite. Playwright drives the **real
-UI** — clicking "▶ Run the demo", "▶ File the incident" — against the real
-backend (core + all 3 connectors, started as local processes) and checks the
-exact claims the pitch makes out loud:
-
-- all three firms render and pick up their incident count after the demo runs
-- the outbound payload panel shows only tokens — no narrative, no raw indicator
-  values, checked against every synthetic plaintext string in the demo data
-- a ◆ SAME ATTACKER and a ◆ SIMILAR ATTACK METHOD card both render
-- the k-anonymity gate says "not yet" at 3 participating institutions
-- filing the demo incident (which carries a hidden prompt injection) shows
-  ◆ TRICK DETECTED with its 4 named findings, and severity stays HIGH — not
-  downgraded
-- all 5 regulators render with the right deadlines (ADGM 24h, CBUAE 24h,
-  CMA 48h, DFSA 72h) and TDRA is flagged as needing a human decision
-- the receipt/proof hash is displayed
-- the three "Live UAE government data" tiles never render blank or an error
-- the riskiest-vendor card and the banks=YES / finance companies=MUST COMBINE
-  publishing-rule table are correct
-
-No live network in this suite: the core's open-data fetchers are routed
-through an unreachable proxy so a portal outage can never make it flaky, and
-a fixed cache is seeded first (`e2e/support/seed-cache.mjs`) so the three
-gov-data tiles resolve to CACHED deterministically. Runs on a port range
-offset from `make run`, so both can be up at once.
-
-<details>
-<summary><b>Terminal output</b> — <code>make test-e2e</code></summary>
-
-```text
-$ make test-e2e
-Running 11 tests using 1 worker
-
-  ✓  exposure.spec.ts   › the three gov-data tiles render with a CACHED label, never blank or error
-  ✓  exposure.spec.ts   › the riskiest vendor card shows an AED figure and 'no replacement exists'
-  ✓  exposure.spec.ts   › the publishing-rule table shows banks=YES and finance companies=MUST COMBINE
-  ✓  operations.spec.ts › all three firms render and pick up their incident count after the demo runs
-  ✓  operations.spec.ts › the outbound payload panel shows tokens and no readable narrative
-  ✓  operations.spec.ts › the matches panel shows a SAME ATTACKER and a SIMILAR ATTACK METHOD card
-  ✓  operations.spec.ts › a "safe to publish: not yet" k-anonymity label is visible
-  ✓  report.spec.ts     › filing the demo incident shows TRICK DETECTED with at least 4 findings
-  ✓  report.spec.ts     › the incident is not downgraded — severity still shows HIGH
-  ✓  report.spec.ts     › all 5 regulators render with the right deadlines, TDRA needing a human decision
-  ✓  report.spec.ts     › the receipt/proof hash is displayed
-
-  11 passed (34.3s)
-```
-
-</details>
-
-<details open>
-<summary><b>Playwright HTML report</b> — all 11 green (<code>npx playwright show-report</code>)</summary>
-<br/>
-
-<img src="docs/screenshots/04-e2e-report.png" alt="Playwright HTML report showing 11 of 11 tests passed" width="850"/>
-
-</details>
-
-### The screens those tests are exercising
-
-<table>
-<tr><td>
-
-**01 · Operations** — three firms, one attacker campaign, correlated with
-zero plaintext shared
-
-<img src="docs/screenshots/01-operations.png" alt="Operations tab: three firms, payload panel showing only tokens, SAME ATTACKER and SIMILAR ATTACK METHOD cards" width="850"/>
-
-</td></tr>
-<tr><td>
-
-**02 · Report & guardrails** — the injected demo email caught, deadlines
-resolved across all 5 regulators, receipt hash produced
-
-<img src="docs/screenshots/02-report.png" alt="Report tab: TRICK DETECTED with 4 findings, 5 regulator deadlines, receipt hash" width="850"/>
-
-</td></tr>
-<tr><td>
-
-**03 · Systemic exposure** — riskiest shared vendor priced in AED, live
-government data, the k-anonymity publishing rule
-
-<img src="docs/screenshots/03-exposure.png" alt="Exposure tab: three LIVE gov-data tiles, UAESWITCH/Jaywan scored CRITICAL with no replacement exists, publishing-rule table" width="850"/>
-
-</td></tr>
-</table>
-
----
-
-## Design decisions worth knowing before you change things
-
-**`institution_ref` is a rotating pseudonym.** Not a name, not a stable ID. The
-validator rejects anything containing spaces or uppercase, which is a cheap guard
-against someone "helpfully" putting a firm name there.
-
-**Timestamps are bucketed to the hour and severity is banded.** Precise values
-would let a peer or the operator single out a firm by timing. Deliberate loss.
-
-**A3 holds no network capability.** It builds payloads; it cannot send them. The
-only egress is `submit()` in the connector's `main.py`, and it accepts nothing but
-an already-validated `IncidentSubmission`.
-
-**The core is additive.** If it disappears, an institution's own incident response
-is unaffected — the connector queues locally and returns 503 rather than blocking.
-MARSAD must never sit on the critical path of a firm in a crisis.
-
-**Nothing degrades silently.** `SimilarityResult.reduced_fidelity` propagates to
-every alert produced by a weaker engine, so an operator always knows the
-confidence context. A confident-looking alert from a degraded path is worse than
-no alert.
-
-**Concentration risk is deterministic, never model output.** A regulator may act
-on those numbers, so they must be reproducible and explainable line by line. The
-weights are named constants with a calibration note — the first version
-under-rated a provider the whole sample depended on, and the test suite caught it.
-
----
-
-## Roadmap
-
-**Now** — obligation resolver (A4) across the divergent UAE clocks: ADGM 24h,
-DIFC 72h, TDRA on essential-service disruption, no bright-line materiality. This
-is the adoption wedge, because it delivers value with **zero** sharing.
-
-**Next** — Postgres + Alembic in place of in-memory state; telemetry ingest (A5)
-for precursor detection; Response Room (A11) at disclosure rung 2.5.
-
-**Then** — OPRF; enclave similarity with published attestation measurements;
-Merkle-batched reporting receipts with public anchoring; Neo4j once graph
-traversals justify it.
-
----
-
-## Government data this runs on
-
-Incident data is synthetic — no UAE open dataset publishes cyber incidents broken
-down by financial-sector entity, and that absence is the gap MARSAD fills. But the
-**privacy parameters and the exposure figures are not invented**, and neither is
-decorative:
-
-| Source | Publisher | What it determines |
+| What | Result | The caveat, attached |
 |---|---|---|
-| Annual Report 2025, Table 4 — Licensees by Type | CBUAE | Cohort sizes → the k-anonymity floor per sector |
-| CB Register (**monthly**) | CBUAE | Participant registry; monthly recomputation of cohort sizes |
-| Monetary, Banking & Financial Markets Developments Report, Q4 2025 | CBUAE | ADX/DFM market cap and traded value → AED exposure |
-| CMA 2025 annual statement | UAE Capital Market Authority | Average daily traded value, AED 2.21 bn |
-| Licensed Companies — Open Data | UAE Capital Market Authority | Enrolment universe, 244 licensed companies |
-| TDRA Open Data (XLSX, 61 datasets) | TDRA | Attack-surface scaling; pilot volume sizing |
-| Monthly UAE Security Report (aeCERT) | TDRA | Incident taxonomy and monthly incident rate |
+| **Tests** | **623** backend, **14** Playwright e2e, **18** network-boundary (in real containers), **8** live-model | 27 known lint findings, tracked as a ratchet |
+| **Canary** | Zero planted strings reach the core — swept across every table, column and row of the live database, every API response, the OpenAPI document and every log line | The sweep is proven able to catch a leak planted in a real row; it is **not** proof against a leak nobody thought to plant |
+| **Network boundary** | A connector cannot reach the core by name or by raw IP; the core cannot reach an institution's plaintext store; two institutions cannot reach each other | Enforced by Docker networking. **Single-host caveat**: these containers share a laptop, so a container can still reach `host.docker.internal`. Recorded, not hidden |
+| **Rules vs model** — English | Deterministic **98.6%** (138/140) · model **56.4%** (79/140) | **Self-authored fixtures.** The rules were tuned against them; the model never saw them. So the comparison favours the model on paper and it still loses by 42 points |
+| **Rules vs model** — Arabic | Deterministic **100%** (70/70) · model **58.6%** (41/70) | Same caveat, harder: 10 fixtures written *after* the Arabic cue tables, by their author. A regression baseline, never a generalisation estimate |
+| **Prompt injection** | **26/33** reach `INJECTION` (neutralised, logged as attacker tradecraft) · **7/33** reach `SUSPECTED` only (neutralised, **not** logged) · **0** missed | The `SUSPECTED` row is the honest failure column. Cases are self-authored, so this measures coverage of patterns we thought of — not robustness |
+| **Connector image** | **8.73 GB → 327 MB** | camel-tools pulled torch, transformers and CUDA for four character maps. Vendored, with upstream kept as a test oracle checking **every codepoint** in U+0600–U+06FF |
+| **Noise floor** | **~0 pts** for warm runs — runs 2–5 of five identical passes were byte-identical. **~1.5 pts** if the first run after a model load is included | **The protocol that follows: discard the first run after every model load.** Without it you carry 12.4% field churn that has nothing to do with model quality |
 
-Two consequences worth knowing:
+A four-model benchmark therefore needs **two passes per model**, one discarded — not
+dozens. Our own earlier before/after comparison was contaminated by exactly this, and
+is corrected in [docs/model-path-results.md](docs/model-path-results.md).
 
-- **k is derived, not chosen.** 3 of 61 licensed banks is 4.9% of the cohort and
-  publishable; 3 of 20 third-party administrators is 15% and is re-identifying, so
-  that cohort is pooled instead. See `data/uae_open_data.py::cohort_rule`.
-- **Concentration is reported in AED.** A regulator cannot act on "score 88.4", so
-  every score is multiplied through published market figures — and the two
-  independent government sources for daily traded value are reconciled in
-  `market_basis()["cross_check"]` (they agree within 2%).
+---
 
-Provenance is served live at `/v1/data/sources` and rendered on the dashboard's
-**Evidence** tab, including the sources we could *not* verify and the portals that
-blocked our client. Overstating a citation is the fastest way to lose a reviewer
-who checks one.
+## What we measured, and what it cost
+
+The most original work here is not the pipeline — it is what running a real model
+through it actually costs. "Constrained decoding is free" is a widespread assumption.
+On a 3B model on CPU it is not.
+
+### Constrained decoding is not free, and the cost is a cliff
+
+| Enum size | Mean latency | vs baseline |
+|---|---|---|
+| Free text (baseline) | 29.3s | — |
+| **20 values** (service vocabulary) | **29.2s** | **free** |
+| **697 values** (canonical ATT&CK) | **1663s** | **57×** |
+
+Plus a **one-off ~46-minute grammar compile** for the 697-value enum. The threshold
+between 20 and 697 is not gradual. Constraining the small vocabulary moved its field
+from 12/30 to **20/30 at no latency cost**; constraining the large one made the
+experiment unviable — 15 extractions took 7 hours, projecting 42.
+
+### Worst-case latency lands on the least informative reports
+
+| Fixture | Content | Constrained latency |
+|---|---|---|
+| `10_almost_nothing` | "Something odd happened with our email service." | **4183s** (70 min) |
+| `11_typos_chat` | chat fragment, typos | **4103s** |
+| `02_ransomware_critical` | a complete, well-formed report | **169s** |
+
+The mechanism is legible: constrained decoding prunes the token distribution to what
+the grammar allows. A strong narrative kills most of the 697 branches immediately. A
+sparse one prunes nothing, so the decoder grinds through all of them.
+
+The operational consequence is worse than the number. **A hurried, half-written
+incident note is exactly when an analyst is most uncertain and least willing to
+wait — and it is the input that makes the system slowest.** A tool that degrades most
+sharply where it helps least is a design problem, not a benchmark footnote.
+
+### Grammar fixes spelling, not judgement
+
+Classifying every ATT&CK ID the model emitted against the canonical 697:
+
+| | |
+|---|---|
+| Fixtures already correct | 6/30 |
+| Wrong, but **every emitted ID is already valid** — grammar inert | **17/30** |
+| Wrong, invented IDs present, but deleting them still leaves the wrong set | 6/30 |
+| Wrong, and deleting invented IDs **would** give the right set | **1/30** |
+
+At the ID level, 69% of wrong identifiers are inventions a grammar would remove — true
+and flattering. **At the level scoring actually works on, a perfect ATT&CK grammar
+takes techniques from 6/30 to at most 7/30. One fixture, for a 57× cost.** The
+majority of the failure is the model choosing real, well-formed identifiers that
+describe a different attack, and nothing in the schema layer reaches that.
+
+### A certificate that was silently never presented
+
+httpx 0.28 accepts `cert=(crt, key)` and then does not present the certificate. The
+server refuses the handshake, the connector reports *core unreachable* and queues
+locally — so **a TLS misconfiguration on the remote host looks exactly like a network
+outage**, which is the hardest kind of failure to diagnose. Found by testing the
+mechanism rather than assuming it; the connector now builds an explicit
+`ssl.SSLContext`, and `tests/test_mtls.py` fails if that regresses.
+
+---
+
+## Architecture
+
+```
+   INSTITUTION (edge)                    │              OPERATOR (core)
+   plaintext lives here, and stays       │              never sees plaintext
+                                         │
+  ┌───────────────────────────────┐      │      ┌──────────────────────────┐
+  │ analyst types prose           │      │      │  correlation engine      │
+  │        ↓                      │      │      │  · exact token match     │
+  │  A2 extraction ── Ollama      │      │      │  · technique similarity  │
+  │   (self-hosted, sovereignty   │      │      │  · k-anonymity gate      │
+  │    guard refuses any public   │      │      └──────────┬───────────────┘
+  │    endpoint at construction)  │      │                 │
+  │        ↓                      │      │      ┌──────────┴───────────────┐
+  │  HUMAN CONFIRMS every field   │      │      │ Postgres · schema "core" │
+  │        ↓                      │      │      │ no column can hold       │
+  │  A14 injection check          │      │      │ narrative                │
+  │  (regex, never model-based)   │      │      └──────────────────────────┘
+  │        ↓                      │      │                 ▲
+  │  A3 REDACTION ─ the only      │      │                 │
+  │  component that may build     │      │         mutual TLS, one route
+  │  a boundary payload           │      │                 │
+  └───────────────┬───────────────┘      │                 │
+                  │                      │                 │
+  ┌───────────────┴───────────────┐      │      ══════════════════════════
+  │ Postgres · schema "edge"      │      │       ONLY THIS CROSSES:
+  │ narrative, analyst notes,     │      │       · keyed tokens (HMAC→OPRF)
+  │ raw email, extraction spans   │      │       · ATT&CK technique IDs
+  │ — expire together, 90 days    │      │       · sector, size, severity band
+  └───────────────────────────────┘      │       · timestamp, bucketed to the hour
+                                         │       · an obligation receipt HASH
+   separate database, separate           │      ══════════════════════════
+   schema, separate host, no route       │       NEVER: narrative · notes
+   from core to here                     │       plaintext indicators · PII
+                                         │       service names · vendor names
+                                         │       extraction spans · firm names
+```
+
+The model sits **inside** the edge, upstream of redaction. That is why the sovereignty
+guard runs at construction: this layer sees plaintext before any boundary control acts,
+so a misconfigured base URL would leak before A3 exists.
+
+---
+
+## How the boundary is enforced
+
+Two tests check the central claim itself rather than a mechanism supporting it.
+
+**The canary.** Plants unique random strings inside an incident, runs the real
+pipeline — extraction, confirmation, redaction, submission, correlation — then looks
+everywhere the core can hold or emit anything: every table, column and row (found by
+**reflection**, not by asking the ORM what it declared), every API response, the
+OpenAPI document, every log line. Five surfaces are canaried separately, including a
+vendor name that extraction quotes verbatim as span evidence, and an Arabic canary
+planted so normalisation rewrites it — it then exists in two forms and both must be
+absent.
+
+```bash
+python -m pytest tests/test_canary.py -v
+```
+
+**The network boundary.** Runs *inside* the containers and asserts a connector cannot
+reach the core by service name or raw IP, the core cannot reach a connector's
+plaintext store, and two institutions cannot reach each other. A positive control
+drives a real incident through the one permitted route, because isolation tests pass
+trivially when everything is broken.
+
+```bash
+make test-boundary          # brings the stack up, runs the suite, tears it down
+```
+
+Both keep themselves honest: `test_the_sweep_can_find_a_leak_planted_in_a_database_row`
+plants narrative in a real column and requires the sweep to report it at the right
+path, and `test_the_sweep_reflects_tables_rather_than_trusting_the_orm` creates a table
+outside the ORM and requires the sweep to find that too.
+
+```bash
+make test                   # 623 backend
+make test-e2e               # 14 Playwright, against the real UI
+make test-llm               # 8, needs a live Ollama
+make test-network           # 2, hits a real UAE government portal
+```
 
 ---
 
 ## Honest scope
 
-Incident data is synthetic. HMAC not OPRF. Jaccard not enclave. In-memory not Postgres.
-No verified access to SCA systems, taxonomies or data, and **no government
-integration is in place** — every entity named in the design is a notional
-counterparty requiring formal agreement. These limits are stated in the UI too;
-overstating them is the fastest way to lose a technically literate audience.
+Read this before believing anything above.
+
+- **Incident data is synthetic.** No UAE open dataset publishes cyber incidents broken
+  down by financial-sector entity — that absence is the gap MARSAD fills. The privacy
+  parameters and AED exposure figures are *not* invented; the incidents are.
+- **Every accuracy figure is a regression baseline, not a generalisation estimate.**
+  The extraction fixtures and the injection corpus are **self-authored**, and the
+  deterministic extractor was tuned against them. They tell you when a change makes
+  things worse. They say nothing about an unseen institution's prose.
+- **HMAC, not OPRF.** Indicators are low-entropy; anyone holding the key can brute-force
+  the input. One shared key across institutions puts the holder in exactly the position
+  we promise nobody occupies. **Do not process real institutional data until this is
+  replaced.**
+- **Jaccard, not enclave.** Technique similarity needs the technique sets in the clear
+  at the core — a weaker privacy position than the deployment target. Every result from
+  a weaker engine self-labels `reduced_fidelity`.
+- **Not deployed.** There is no public URL. The deployment artefacts exist and are
+  verified locally; nothing has run on public infrastructure. See
+  [docs/deployment.md](docs/deployment.md), which separates what was verified from what
+  was not.
+- **The network boundary is proven on one host.** Containers share a laptop, so one can
+  still reach `host.docker.internal`. In deployment the two sides are different
+  organisations on different machines — but that has not been tested, and the test says
+  so rather than pretending otherwise.
+- **The model path is measured on one model.** qwen2.5:3b-instruct on CPU. A larger
+  model may well close the gap with the rules; that is unmeasured.
+- **No government integration.** No verified access to SCA/CMA systems, taxonomies or
+  data. Every entity named in the design is a notional counterparty requiring a formal
+  agreement.
+
+---
+
+## Install
+
+```bash
+make install          # contracts, service deps, Playwright browser
+make migrate          # both databases, empty to current
+make run              # docker compose: core + 3 connectors + web
+make demo             # drive the full scenario through the real services
+```
+
+Then open <http://localhost:3000>.
+
+Optional — the self-hosted model:
+
+```bash
+ollama serve & ollama pull qwen2.5:3b-instruct
+export MARSAD_LLM_PROVIDER=openai_compatible
+export MARSAD_LLM_BASE_URL=http://localhost:11434/v1
+export MARSAD_LLM_MODEL=qwen2.5:3b-instruct
+```
+
+The sovereignty guard refuses any endpoint reachable on the public internet, and any
+hosted-vendor API key, **at construction** — a connector that only fails when an
+analyst files their first incident has already failed.
+
+**Further reading:** [CLAUDE.md](CLAUDE.md) (what a contributor must not get wrong) ·
+[docs/model-path-results.md](docs/model-path-results.md) (the measurements) ·
+[docs/injection-results.md](docs/injection-results.md) ·
+[docs/deployment.md](docs/deployment.md)

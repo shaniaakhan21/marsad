@@ -1,0 +1,25 @@
+{
+  "id": "05_bec_invoice",
+  "language": "en",
+  "messiness": "clean prose",
+  "narrative": "Business email compromise: a supplier invoice was redirected to attacker-controlled account 88123456 on 2026-06-02 14:20 UTC. AED 1.2m of funds were transferred before the payment gateway was frozen. Mailbox forwarding rules had been created on the finance mailbox.",
+  "expected": {
+    "severity": "CRITICAL",
+    "category": "BUSINESS_EMAIL_COMPROMISE",
+    "affected_services": [
+      "payment gateway"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "ACCOUNT",
+        "88123456"
+      ]
+    ],
+    "techniques": [
+      "T1114",
+      "T1656"
+    ],
+    "detected_at": "2026-06-02T14:20:00+00:00"
+  }
+}

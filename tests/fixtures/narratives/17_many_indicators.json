@@ -1,0 +1,40 @@
+{
+  "id": "17_many_indicators",
+  "language": "en",
+  "messiness": "indicator-dense",
+  "narrative": "Incident detected 2026-12-01 09:00 UTC. Observed: 198.51.100.7, malicious-cdn[.]ru, https://malicious-cdn.ru/payload.bin, file hash d41d8cd98f00b204e9800998ecf8427e, wallet 0x52908400098527886E0F7030069857D2E4169EE7, and beneficiary IBAN GB29 NWBK 6016 1331 9268 19. Malware confirmed. High severity.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "MALWARE",
+    "affected_services": null,
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "IP",
+        "198.51.100.7"
+      ],
+      [
+        "DOMAIN",
+        "malicious-cdn[.]ru"
+      ],
+      [
+        "URL",
+        "https://malicious-cdn.ru/payload.bin"
+      ],
+      [
+        "FILE_HASH",
+        "d41d8cd98f00b204e9800998ecf8427e"
+      ],
+      [
+        "WALLET",
+        "0x52908400098527886E0F7030069857D2E4169EE7"
+      ],
+      [
+        "IBAN",
+        "GB29 NWBK 6016 1331 9268 19"
+      ]
+    ],
+    "techniques": null,
+    "detected_at": "2026-12-01T09:00:00+00:00"
+  }
+}

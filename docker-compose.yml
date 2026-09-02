@@ -1,18 +1,111 @@
 # Runs the whole federation on one laptop: three independent institution
 # connectors plus one core. The separation is real — each connector is its own
 # container with its own storage, and only the boundary payload moves between them.
+#
+# The network topology is part of the guarantee, not decoration
+# ------------------------------------------------------------
+# Each connector sits alone on its own edge network. Core sits alone on core_net.
+# The only container attached to both sides is boundary-gateway, and it forwards
+# exactly one endpoint: POST /v1/submissions.
+#
+# What that buys, and which layer enforces it:
+#
+#   connector -> core            no route at all      (Docker, network layer)
+#   core -> connector            no route at all      (Docker, network layer)
+#   connector -> other connector no route at all      (Docker, network layer)
+#   connector -> anything but    403 at the gateway   (nginx config, infra/)
+#     POST /v1/submissions
+#
+# Databases follow the same split. Core has its own Postgres on core_net; each
+# institution has its own Postgres on its own edge network. The core cannot open an
+# edge database because it has no route to one — the same isolation the services get,
+# applied to the thing that actually holds the plaintext. Sharing one instance would
+# quietly destroy the thesis, so the topology makes it impossible rather than
+# discouraged.
+#
+# The edge networks are `internal: true`, so a connector has no route to the host
+# bridge either — it cannot reach core the long way round via a published port.
+# core_net is deliberately NOT internal: the core fetches UAE open data and needs
+# egress. tests/test_network_boundary.py asserts all of the above from inside the
+# running containers; see the README for the command.
+networks:
+  edge_almaha: {}
+  edge_gulfsec: {}
+  edge_emcap: {}
+  core_net: {}
+
 services:
+  # The core's store of record. On core_net only: no connector can reach it, and it
+  # can reach no connector.
+  core-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: dev-only-core-password
+      POSTGRES_DB: marsad_core
+    volumes: ["core_db_data:/var/lib/postgresql/data"]
+    networks: [core_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_core"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   core:
     build: { context: ., dockerfile: services/core/Dockerfile }
     environment:
       MARSAD_CORE_SIMILARITY_ENGINE: jaccard
       MARSAD_CORE_SIMILARITY_THRESHOLD: "0.60"
       MARSAD_CORE_K_ANONYMITY: "3"
+      MARSAD_CORE_STORE: sql
+      MARSAD_CORE_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_CORE_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-core-password@core-db:5432/marsad_core"
     ports: ["8000:8000"]
+    networks: [core_net]
+    depends_on:
+      core-db:
+        condition: service_healthy
+
+  # The only container on both sides of the boundary. Holds no state, runs no
+  # application code, and forwards one endpoint.
+  boundary-gateway:
+    build: { context: ., dockerfile: infra/Dockerfile.gateway }
+    # Aliases are declared explicitly on every edge network rather than left to
+    # Compose's default. A service joined to several networks does not reliably get
+    # its service name as an alias on all of them, and a connector whose
+    # MARSAD_CORE_URL silently stops resolving fails closed into degraded mode — it
+    # queues locally and returns 503, which looks like an outage rather than a
+    # misconfiguration.
+    networks:
+      edge_almaha:
+        aliases: [boundary-gateway]
+      edge_gulfsec:
+        aliases: [boundary-gateway]
+      edge_emcap:
+        aliases: [boundary-gateway]
+      core_net:
+        aliases: [boundary-gateway]
+    depends_on: [core]
 
   # NOTE: all three connectors share MARSAD_TOKEN_KEY because tokens must be
   # comparable across institutions. In production this key is never distributed —
   # it lives in an HSM under threshold custody and is used via an OPRF protocol.
+  # almaha's own plaintext store. On almaha's edge network only — unreachable from
+  # core_net, and unreachable from any other institution.
+  edge-db-almaha:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: dev-only-edge-password
+      POSTGRES_DB: marsad_edge
+    volumes: ["edge_db_almaha_data:/var/lib/postgresql/data"]
+    networks: [edge_almaha]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   connector-almaha:
     build: { context: ., dockerfile: services/connector/Dockerfile }
     environment:
@@ -20,11 +113,36 @@ services:
       MARSAD_INSTITUTION_REF: "psd_almaha01"
       MARSAD_SECTOR: BANK
       MARSAD_SIZE_BAND: LARGE
-      MARSAD_CORE_URL: "http://core:8000"
+      MARSAD_CORE_URL: "http://boundary-gateway:8000"
       MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
       MARSAD_TOKENISER: hmac
+      MARSAD_STORE: sql
+      MARSAD_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-almaha:5432/marsad_edge"
+      MARSAD_RETENTION_DAYS: "90"
     ports: ["8101:8000"]
-    depends_on: [core]
+    networks: [edge_almaha]
+    depends_on:
+      boundary-gateway:
+        condition: service_started
+      edge-db-almaha:
+        condition: service_healthy
+
+  # gulfsec's own plaintext store. On gulfsec's edge network only — unreachable from
+  # core_net, and unreachable from any other institution.
+  edge-db-gulfsec:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: dev-only-edge-password
+      POSTGRES_DB: marsad_edge
+    volumes: ["edge_db_gulfsec_data:/var/lib/postgresql/data"]
+    networks: [edge_gulfsec]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   connector-gulfsec:
     build: { context: ., dockerfile: services/connector/Dockerfile }
@@ -33,11 +151,36 @@ services:
       MARSAD_INSTITUTION_REF: "psd_gulfsec02"
       MARSAD_SECTOR: BROKER
       MARSAD_SIZE_BAND: MID
-      MARSAD_CORE_URL: "http://core:8000"
+      MARSAD_CORE_URL: "http://boundary-gateway:8000"
       MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
       MARSAD_TOKENISER: hmac
+      MARSAD_STORE: sql
+      MARSAD_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-gulfsec:5432/marsad_edge"
+      MARSAD_RETENTION_DAYS: "90"
     ports: ["8102:8000"]
-    depends_on: [core]
+    networks: [edge_gulfsec]
+    depends_on:
+      boundary-gateway:
+        condition: service_started
+      edge-db-gulfsec:
+        condition: service_healthy
+
+  # emcap's own plaintext store. On emcap's edge network only — unreachable from
+  # core_net, and unreachable from any other institution.
+  edge-db-emcap:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: dev-only-edge-password
+      POSTGRES_DB: marsad_edge
+    volumes: ["edge_db_emcap_data:/var/lib/postgresql/data"]
+    networks: [edge_emcap]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   connector-emcap:
     build: { context: ., dockerfile: services/connector/Dockerfile }
@@ -46,16 +189,34 @@ services:
       MARSAD_INSTITUTION_REF: "psd_emcap03"
       MARSAD_SECTOR: INVEST
       MARSAD_SIZE_BAND: MID
-      MARSAD_CORE_URL: "http://core:8000"
+      MARSAD_CORE_URL: "http://boundary-gateway:8000"
       MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
       MARSAD_TOKENISER: hmac
+      MARSAD_STORE: sql
+      MARSAD_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-emcap:5432/marsad_edge"
+      MARSAD_RETENTION_DAYS: "90"
     ports: ["8103:8000"]
-    depends_on: [core]
+    networks: [edge_emcap]
+    depends_on:
+      boundary-gateway:
+        condition: service_started
+      edge-db-emcap:
+        condition: service_healthy
 
+  # Browser-side only: NEXT_PUBLIC_* values are resolved in the user's browser
+  # against published host ports, so the web container needs no route to either side.
   web:
     build: { context: ./apps/web }
     environment:
       NEXT_PUBLIC_CORE_URL: "http://localhost:8000"
       NEXT_PUBLIC_CONNECTORS: "http://localhost:8101,http://localhost:8102,http://localhost:8103"
     ports: ["3000:3000"]
-    depends_on: [core]
+
+# Separate volumes, one per database. Never shared — a shared volume would be a
+# shared database wearing two names.
+volumes:
+  core_db_data: {}
+  edge_db_almaha_data: {}
+  edge_db_gulfsec_data: {}
+  edge_db_emcap_data: {}

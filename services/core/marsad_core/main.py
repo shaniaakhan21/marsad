@@ -13,6 +13,7 @@ from marsad_core.config import settings
 from marsad_core.data import fetchers as fx
 from marsad_core.data import roadmap as roadmap_data
 from marsad_core.data import uae_open_data as od
+from marsad_core.db.session import build_engine, build_sessionmaker, create_all
 from marsad_core.engines.correlation import CorrelationEngine
 from marsad_core.engines.similarity import build_similarity_engine
 from marsad_core.services.concentration import (
@@ -20,6 +21,7 @@ from marsad_core.services.concentration import (
     Substitutability,
     rank,
 )
+from marsad_core.store import InMemoryStore, SqlStore, rehydrate
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("marsad.core")
@@ -87,7 +89,25 @@ async def lifespan(_: FastAPI):
     )
     STATE["hits"] = []
     STATE["deps"] = list(SEED_DEPENDENCIES)
-    log.info("core.ready similarity=%s k=%d", cfg.similarity_engine, cfg.k_anonymity)
+
+    # The store of record. The engine's token index is a cache rebuilt from it — see
+    # store.py. A core that restarted without rehydrating would find no matches
+    # against anything submitted before the restart and report that as "no
+    # correlation", which is a silent false negative and the worst failure mode here.
+    if cfg.store == "memory":
+        STATE["store"] = InMemoryStore()
+    else:
+        db_engine = build_engine(cfg.database_url)
+        if cfg.auto_create_schema:
+            create_all(db_engine)
+        STATE["db_engine"] = db_engine
+        STATE["store"] = SqlStore(build_sessionmaker(db_engine))
+        rehydrate(STATE["engine"], STATE["store"])
+
+    log.info(
+        "core.ready similarity=%s k=%d store=%s",
+        cfg.similarity_engine, cfg.k_anonymity, STATE["store"].name,
+    )
     yield
 
 
@@ -97,7 +117,11 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "submissions": STATE["engine"].submission_count}
+    return {
+        "ok": True,
+        "submissions": STATE["store"].submission_count(),
+        "store": STATE["store"].name,
+    }
 
 
 @app.post("/v1/submissions")
@@ -110,6 +134,13 @@ async def submit(sub: IncidentSubmission):
     engine: CorrelationEngine = STATE["engine"]
     hits = engine.ingest(sub)
     STATE["hits"].extend(hits)
+
+    # Persist after matching, never before: the engine is idempotent on
+    # submission_id, and writing first would let a retry be counted twice by one side
+    # and once by the other.
+    store = STATE["store"]
+    store.save_submission(sub)
+    store.save_correlations(hits)
 
     return {
         "accepted": True,

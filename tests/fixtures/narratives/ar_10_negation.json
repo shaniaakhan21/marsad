@@ -1,0 +1,17 @@
+{
+  "id": "ar_10_negation",
+  "language": "ar",
+  "messiness": "Arabic negation — must not read the thing it denies",
+  "narrative": "تم رصد برمجيات خبيثة على نظام الخزينة في 2026-09-01 06:30 UTC. لم يتم تسريب البيانات ولم يتم اختراق المزود. الأثر: متوسط.",
+  "expected": {
+    "severity": "MEDIUM",
+    "category": "MALWARE",
+    "affected_services": [
+      "treasury system"
+    ],
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": null,
+    "detected_at": "2026-09-01T06:30:00+00:00"
+  }
+}

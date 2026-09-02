@@ -1,0 +1,28 @@
+{
+  "id": "20_messy_long",
+  "language": "en",
+  "messiness": "long, messy, buried facts",
+  "narrative": "Right — writing this up properly now. Started when the SOC saw odd auth failures around 2026-07-07 21:10 UTC. Turned out to be credential stuffing against the mobile banking service. We think they got in with valid credentials on two accounts, then set up auto-forwarding on those mailboxes. Nothing exfiltrated as far as we can tell. Our vendor Meridian Cloud hosts that stack but was not compromised. Calling it high severity because customer accounts were involved. Source address 185.220.101.44.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "CREDENTIAL_COMPROMISE",
+    "affected_services": [
+      "mobile banking"
+    ],
+    "third_party_dependencies": [
+      "Meridian Cloud"
+    ],
+    "indicators": [
+      [
+        "IP",
+        "185.220.101.44"
+      ]
+    ],
+    "techniques": [
+      "T1078",
+      "T1110",
+      "T1114"
+    ],
+    "detected_at": "2026-07-07T21:10:00+00:00"
+  }
+}

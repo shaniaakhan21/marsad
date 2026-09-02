@@ -1,0 +1,24 @@
+{
+  "id": "14_run_on",
+  "language": "en",
+  "messiness": "run-on, no punctuation",
+  "narrative": "so basically on 2026-10-03 07:15 UTC we noticed a lookalike portal at secure-almaha-login[.]com people were entering credentials there and it was a phishing page and the internet banking service went down for a bit major issue for us",
+  "expected": {
+    "severity": "HIGH",
+    "category": "PHISHING",
+    "affected_services": [
+      "internet banking"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "DOMAIN",
+        "secure-almaha-login[.]com"
+      ]
+    ],
+    "techniques": [
+      "T1566.002"
+    ],
+    "detected_at": "2026-10-03T07:15:00+00:00"
+  }
+}

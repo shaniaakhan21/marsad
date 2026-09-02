@@ -1,0 +1,24 @@
+{
+  "id": "15_bullets",
+  "language": "en",
+  "messiness": "bullet fragments",
+  "narrative": "- DDoS against the market data feed\n- started 2026-11-19 10:00 UTC\n- source 203.0.113.44\n- traffic flood, 15 min\n- no data lost, contained quickly",
+  "expected": {
+    "severity": "MEDIUM",
+    "category": "DENIAL_OF_SERVICE",
+    "affected_services": [
+      "market data feed"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "IP",
+        "203.0.113.44"
+      ]
+    ],
+    "techniques": [
+      "T1498"
+    ],
+    "detected_at": "2026-11-19T10:00:00+00:00"
+  }
+}

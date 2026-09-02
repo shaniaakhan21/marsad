@@ -382,7 +382,16 @@ class ObligationAgent(Agent):
 
 
 __all__ = [
-    "Authority", "Applicability", "AuthorityRule", "RULES", "RULES_BY_AUTHORITY",
-    "CORPUS_VERSION", "NOTIFY_AT_OR_ABOVE", "Obligation", "ObligationResult",
-    "resolve", "receipt_hash", "ObligationAgent",
+    "CORPUS_VERSION",
+    "NOTIFY_AT_OR_ABOVE",
+    "RULES",
+    "RULES_BY_AUTHORITY",
+    "Applicability",
+    "Authority",
+    "AuthorityRule",
+    "Obligation",
+    "ObligationAgent",
+    "ObligationResult",
+    "receipt_hash",
+    "resolve",
 ]

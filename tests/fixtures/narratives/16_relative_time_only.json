@@ -1,0 +1,19 @@
+{
+  "id": "16_relative_time_only",
+  "language": "en",
+  "messiness": "time is relative — must not be invented",
+  "narrative": "Earlier today a phishing email went to the whole trading desk. Credentials were harvested from one user. The trading terminal itself was not affected.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "PHISHING",
+    "affected_services": [
+      "trading terminal"
+    ],
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": [
+      "T1566"
+    ],
+    "detected_at": null
+  }
+}
