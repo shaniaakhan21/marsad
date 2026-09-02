@@ -274,6 +274,8 @@ export interface TrackedField {
   reason: string;
   edited: boolean;
   present: boolean;
+  /** Values refused outright rather than flagged — see a2_extract._locatable_indicators. */
+  rejected: unknown[];
 }
 
 export interface ExtractionDraft {
@@ -287,6 +289,16 @@ export interface ExtractionDraft {
   confidence_threshold: number;
   autonomy: "PROPOSE_CONFIRM";
   confirmed: false;
+  narrative_normalised: string;
+  language: "ENGLISH" | "ARABIC" | "MIXED";
+  /** True when a language model proposed these fields rather than the cue tables. */
+  model_proposed: boolean;
+  /**
+   * When true, confirm() refuses unless the analyst explicitly passes an indicators
+   * edit. A model-proposed indicator becomes a token in a shared matching space that
+   * nobody downstream can review, so it needs positive sign-off. See CLAUDE.md.
+   */
+  requires_indicator_confirmation: boolean;
 }
 
 export interface ConfirmResult {
