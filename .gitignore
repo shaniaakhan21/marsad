@@ -48,3 +48,8 @@ Thumbs.db
 !.env.example
 !.github/
 !.github/**
+
+# Deployment TLS material. The CA key signs every identity core trusts; a private key
+# in version control is a private key on every machine that ever cloned the repo.
+# Regenerate with deploy/make-certs.sh.
+deploy/certs/

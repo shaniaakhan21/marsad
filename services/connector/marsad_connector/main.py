@@ -8,8 +8,10 @@ accepts only an already-redacted IncidentSubmission.
 from __future__ import annotations
 
 import logging
+import ssl
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -25,6 +27,7 @@ from marsad_connector.agents.a14_supervisor import inspect as inspect_for_inject
 from marsad_connector.config import settings
 from marsad_connector.crypto.tokeniser import build_tokeniser
 from marsad_connector.db.session import build_engine, build_sessionmaker, create_all
+from marsad_connector.llm.budget import CallBudget
 from marsad_connector.llm.provider import LLMProvider, build_llm
 from marsad_connector.store import InMemoryStore, SqlStore, provenance_from_draft
 
@@ -86,6 +89,14 @@ def _build_llm_at_startup() -> LLMProvider:
 
 
 LLM: LLMProvider = _build_llm_at_startup()
+
+#: Ceiling on model calls, or None for no ceiling. Built at startup beside the
+#: provider so a public deployment cannot forget it: MARSAD_LLM_DAILY_CALL_BUDGET is
+#: the one setting standing between an open LLM endpoint and an unbounded bill.
+LLM_BUDGET = (
+    CallBudget(limit=settings().llm_daily_call_budget)
+    if settings().llm_daily_call_budget > 0 else None
+)
 
 #: Proposals awaiting human confirmation. Deliberately a separate store from LOCAL:
 #: a draft is not an incident, and keeping them in one dict would make it a
@@ -209,7 +220,7 @@ async def extract_from_text(body: ExtractIn):
         )
 
     try:
-        draft = await ExtractionAgent(LLM).propose(
+        draft = await ExtractionAgent(LLM, budget=LLM_BUDGET).propose(
             body.narrative, analyst_notes=body.analyst_notes, raw_email=body.raw_email,
         )
     except ValueError as exc:
@@ -341,7 +352,7 @@ async def preview(iid: str) -> IncidentSubmission:
 async def submit(iid: str):
     sub = _build(iid)
     cfg = settings()
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, **_core_tls(cfg)) as client:
         try:
             r = await client.post(f"{cfg.core_url}/v1/submissions", json=sub.model_dump(mode="json"))
             r.raise_for_status()
@@ -350,6 +361,41 @@ async def submit(iid: str):
             log.warning("connector.core_unreachable queued incident=%s err=%s", iid, exc)
             raise HTTPException(503, "core unreachable; submission queued locally") from exc
     return {"submitted": True, "core_response": r.json(), "payload_sent": sub.model_dump(mode="json")}
+
+
+def _core_tls(cfg) -> dict:
+    """
+    Client-side mutual TLS material for reaching the core.
+
+    A connector on separate hardware proves its identity with a certificate. Built as
+    an explicit `ssl.SSLContext` rather than httpx's `cert=` keyword, which is
+    DELIBERATE and was found by testing: on httpx 0.28 `cert=` silently fails to
+    present the certificate and the server rejects the handshake with
+    `TLSV13_ALERT_CERTIFICATE_REQUIRED`. The connector then reports "core unreachable"
+    and queues locally, so a TLS misconfiguration reads as a network outage — see
+    tests/test_mtls.py, which fails if that regresses.
+
+    Read at call time rather than baked into a shared client, so a rotated certificate
+    takes effect without a restart and a missing one fails loudly at the first
+    submission instead of quietly downgrading to an unauthenticated connection.
+    """
+    if not cfg.core_client_cert:
+        return {}
+
+    for label, path in (("certificate", cfg.core_client_cert), ("key", cfg.core_client_key)):
+        if not path or not Path(path).exists():
+            raise RuntimeError(
+                f"MARSAD_CORE_CLIENT_* is configured but the {label} is missing at "
+                f"{path!r}. Refusing to fall back to an unauthenticated connection: a "
+                f"connector that quietly stops proving who it is looks identical to one "
+                f"that never had to."
+            )
+
+    context = ssl.create_default_context(
+        cafile=cfg.core_ca_bundle or None  # None falls back to the system trust store
+    )
+    context.load_cert_chain(cfg.core_client_cert, cfg.core_client_key)
+    return {"verify": context}
 
 
 def _build(iid: str) -> IncidentSubmission:

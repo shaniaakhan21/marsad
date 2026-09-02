@@ -1,0 +1,182 @@
+# MAIN VPS — core, its Postgres, two institutions, the edge model, and the public edge.
+#
+# Institution C is deliberately NOT here. It runs on a second, cheaper host
+# (docker-compose.remote.yml) and reaches core across the public internet over mutual
+# TLS. That is the difference between claiming a distributed architecture and having
+# one: A and B share a kernel, so their isolation is Docker's; C shares nothing, so
+# its isolation is physics.
+#
+# The local topology is unchanged from docker-compose.yml and for the same reasons —
+# each connector alone on its own network, core alone on core_net, one gateway
+# bridging them for exactly one endpoint. Caddy sits in front of that for TLS and for
+# the limits a public demo needs.
+networks:
+  edge_almaha: {}
+  edge_gulfsec: {}
+  core_net: {}
+  public_net: {}
+
+volumes:
+  core_db_data: {}
+  edge_db_almaha_data: {}
+  edge_db_gulfsec_data: {}
+  caddy_data: {}
+  caddy_config: {}
+  ollama_models: {}
+
+services:
+  # ---------------------------------------------------------------- public edge
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "8443:8443"]
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs/ca.crt:/etc/caddy/ca.crt:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      CORE_DOMAIN: ${CORE_DOMAIN:?set CORE_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+      CA_CERT: /etc/caddy/ca.crt
+    networks: [public_net, core_net]
+    depends_on: [core]
+
+  # ---------------------------------------------------------------- core
+  core-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: ${CORE_DB_PASSWORD:?set CORE_DB_PASSWORD}
+      POSTGRES_DB: marsad_core
+    volumes: ["core_db_data:/var/lib/postgresql/data"]
+    networks: [core_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_core"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  core:
+    build: { context: .., dockerfile: services/core/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MARSAD_CORE_SIMILARITY_ENGINE: jaccard
+      MARSAD_CORE_SIMILARITY_THRESHOLD: "0.60"
+      MARSAD_CORE_K_ANONYMITY: "3"
+      MARSAD_CORE_STORE: sql
+      MARSAD_CORE_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_CORE_DATABASE_URL: "postgresql+psycopg://marsad:${CORE_DB_PASSWORD}@core-db:5432/marsad_core"
+    # No published port. The only way in is through Caddy.
+    networks: [core_net]
+    depends_on:
+      core-db: { condition: service_healthy }
+
+  boundary-gateway:
+    build: { context: .., dockerfile: infra/Dockerfile.gateway }
+    restart: unless-stopped
+    networks:
+      edge_almaha: { aliases: [boundary-gateway] }
+      edge_gulfsec: { aliases: [boundary-gateway] }
+      core_net: { aliases: [boundary-gateway] }
+    depends_on: [core]
+
+  # ---------------------------------------------------------------- the edge model
+  # One model shared by the two local connectors. Never exposed publicly: it sits on
+  # the edge networks only, so nothing outside a connector can reach it. The public
+  # cap on model calls is enforced in the connector (llm/budget.py), because that is
+  # where a call is attributable to a request.
+  ollama:
+    image: ollama/ollama:0.3.14
+    restart: unless-stopped
+    volumes: ["ollama_models:/root/.ollama"]
+    networks: [edge_almaha, edge_gulfsec]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # ---------------------------------------------------------------- institutions A and B
+  edge-db-almaha:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: ${EDGE_DB_PASSWORD:?set EDGE_DB_PASSWORD}
+      POSTGRES_DB: marsad_edge
+    volumes: ["edge_db_almaha_data:/var/lib/postgresql/data"]
+    networks: [edge_almaha]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  connector-almaha:
+    build: { context: .., dockerfile: services/connector/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MARSAD_INSTITUTION_NAME: "Al Maha Bank"
+      MARSAD_INSTITUTION_REF: "psd_almaha01"
+      MARSAD_SECTOR: BANK
+      MARSAD_SIZE_BAND: LARGE
+      MARSAD_CORE_URL: "http://boundary-gateway:8000"
+      MARSAD_TOKEN_KEY: ${TOKEN_KEY:?set TOKEN_KEY}
+      MARSAD_TOKENISER: hmac
+      MARSAD_STORE: sql
+      MARSAD_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:${EDGE_DB_PASSWORD}@edge-db-almaha:5432/marsad_edge"
+      MARSAD_RETENTION_DAYS: "90"
+      MARSAD_LLM_PROVIDER: openai_compatible
+      MARSAD_LLM_BASE_URL: "http://ollama:11434/v1"
+      MARSAD_LLM_MODEL: ${EDGE_MODEL:-qwen2.5:3b-instruct}
+      # The public-demo ceiling. See llm/budget.py: when it is spent, extraction
+      # degrades to the deterministic path rather than failing.
+      MARSAD_LLM_DAILY_CALL_BUDGET: ${LLM_DAILY_CALL_BUDGET:-200}
+    ports: ["8101:8000"]
+    networks: [edge_almaha]
+    depends_on:
+      boundary-gateway: { condition: service_started }
+      edge-db-almaha: { condition: service_healthy }
+
+  edge-db-gulfsec:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: ${EDGE_DB_PASSWORD:?set EDGE_DB_PASSWORD}
+      POSTGRES_DB: marsad_edge
+    volumes: ["edge_db_gulfsec_data:/var/lib/postgresql/data"]
+    networks: [edge_gulfsec]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  connector-gulfsec:
+    build: { context: .., dockerfile: services/connector/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MARSAD_INSTITUTION_NAME: "Gulf Securities"
+      MARSAD_INSTITUTION_REF: "psd_gulfsec02"
+      MARSAD_SECTOR: BROKER
+      MARSAD_SIZE_BAND: MID
+      MARSAD_CORE_URL: "http://boundary-gateway:8000"
+      MARSAD_TOKEN_KEY: ${TOKEN_KEY}
+      MARSAD_TOKENISER: hmac
+      MARSAD_STORE: sql
+      MARSAD_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:${EDGE_DB_PASSWORD}@edge-db-gulfsec:5432/marsad_edge"
+      MARSAD_RETENTION_DAYS: "90"
+      MARSAD_LLM_PROVIDER: openai_compatible
+      MARSAD_LLM_BASE_URL: "http://ollama:11434/v1"
+      MARSAD_LLM_MODEL: ${EDGE_MODEL:-qwen2.5:3b-instruct}
+      MARSAD_LLM_DAILY_CALL_BUDGET: ${LLM_DAILY_CALL_BUDGET:-200}
+    ports: ["8102:8000"]
+    networks: [edge_gulfsec]
+    depends_on:
+      boundary-gateway: { condition: service_started }
+      edge-db-gulfsec: { condition: service_healthy }

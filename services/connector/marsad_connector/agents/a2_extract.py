@@ -1165,15 +1165,22 @@ class ExtractionAgent(Agent):
     autonomy = Autonomy.PROPOSE_CONFIRM
     may_cross_boundary = False
 
-    def __init__(self, provider=None) -> None:
+    def __init__(self, provider=None, budget=None) -> None:
         # The offline stub cannot produce this schema, so a connector without a
         # sovereign model configured uses the deterministic extractor rather than
         # pretending a model ran.
         from marsad_connector.llm.provider import StubProvider
 
         use_model = provider is not None and not isinstance(provider, StubProvider)
-        self._extractor = ModelExtractor(provider) if use_model else HeuristicExtractor()
+        self._model_extractor = ModelExtractor(provider) if use_model else None
+        self._heuristic = HeuristicExtractor()
+        self._extractor = self._model_extractor or self._heuristic
         self._is_model = use_model
+        #: Optional ceiling on model calls. When it is spent, extraction degrades to
+        #: the deterministic path rather than failing — a public demo must not become
+        #: free compute, and an institution must never be unable to file an incident
+        #: because someone else exhausted a quota. See llm/budget.py.
+        self._budget = budget
 
     async def propose(
         self, narrative: str, *, analyst_notes: str | None = None, raw_email: str | None = None,
@@ -1181,11 +1188,17 @@ class ExtractionAgent(Agent):
         if not (narrative or "").strip():
             raise ValueError("nothing to extract: the narrative is empty")
 
+        # Claim budget before the call, and fall back rather than fail if it is gone.
+        use_model = self._is_model
+        if use_model and self._budget is not None and not self._budget.try_spend():
+            use_model = False
+
         fields = (
-            await self._extractor.propose(narrative)
-            if self._is_model
-            else self._extractor.propose(narrative)
+            await self._model_extractor.propose(narrative)
+            if use_model
+            else self._heuristic.propose(narrative)
         )
+        extractor_name = self._model_extractor.name if use_model else self._heuristic.name
         draft = ExtractionDraft(
             draft_id=str(uuid.uuid4()),
             narrative=narrative,
@@ -1193,8 +1206,8 @@ class ExtractionAgent(Agent):
             narrative_normalised=normalise_tracked(narrative).text,
             analyst_notes=analyst_notes,
             raw_email=raw_email,
-            method=self._extractor.name,
-            model_proposed=self._is_model,
+            method=extractor_name,
+            model_proposed=use_model,
             language=detect_language(narrative).value,
         )
         log.info(
