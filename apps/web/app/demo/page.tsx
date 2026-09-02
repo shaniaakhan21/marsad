@@ -196,6 +196,23 @@ export default function DemoPage() {
       />
 
       <div className="space-y-4 p-8">
+        {/*
+          On screen from frame one, not added in post. A recording that shows a demo
+          running fast and mentions the extractor afterwards has already misled anyone
+          who stops watching early — and the model path being slower is a measured
+          result of this project, not something to hide behind editing.
+        */}
+        <p
+          data-testid="extractor-caveat"
+          className="rounded-[10px] border border-line bg-panel2/50 px-3 py-2 text-[10.5px] leading-relaxed text-text-secondary"
+        >
+          <span className="font-mono font-bold text-text-muted">NOTE ·</span> This demo runs the{" "}
+          <span className="font-semibold text-text-primary">deterministic extractor</span> for
+          timing. The self-hosted model path is slower and less accurate on our own fixtures, and
+          is measured separately in{" "}
+          <code className="font-mono text-volt">docs/model-path-results.md</code>.
+        </p>
+
         {err && (
           <p className="rounded-[14px] border border-ember/40 bg-ember/10 p-3 text-xs text-text-primary">
             {err} — start the stack with <code className="font-mono">make run</code>.

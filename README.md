@@ -10,6 +10,20 @@ firm. Only keyed tokens, ATT&CK technique IDs and hour-bucketed metadata cross. 
 language model that reads the analyst's prose runs on the institution's own hardware;
 a provider pointed at a hosted vendor is refused at construction, not at request time.
 
+<!--
+  The GIF is not committed yet. Until docs/demo.gif exists this renders as a broken
+  image on GitHub — drop the file in and it works with no further edits.
+  Produce it with:  make record   then follow docs/recording.md
+-->
+![MARSAD guided demo — two firms, two languages, one attacker, and nothing sensitive crossing](docs/demo.gif)
+
+<sub>Ninety seconds, end to end: an English filing, an Arabic one on rotated
+infrastructure, a correlation that fires on tradecraft, the k-anonymity gate holding,
+exposure priced in AED, and an injection quarantined. Reproduce it with
+`make record` — see [docs/recording.md](docs/recording.md).</sub>
+
+---
+
 Built for **UAE Hackathon 2026 · Track 1 HackArena · Challenge #9**, Securities and
 Commodities Authority — now the **UAE Capital Market Authority** — under **Theme 4,
 Digital Trust & Cyber-Secure Nation**. The privacy parameters are derived from

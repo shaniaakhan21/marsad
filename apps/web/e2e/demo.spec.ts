@@ -98,3 +98,20 @@ test("the demo reaches its completion state", async ({ page }) => {
   await expect(page.getByTestId("demo-complete")).toBeVisible({ timeout: 90_000 });
   await expect(page.getByRole("button", { name: RUN })).toBeEnabled();
 });
+
+test("the extractor caveat is visible from frame one, before anything runs", async ({ page }) => {
+  /**
+   * On screen at load, not added in post. A recording that shows the demo running
+   * fast and mentions the extractor afterwards has already misled anyone who stops
+   * watching early — and the model path being slower is a measured result of this
+   * project, not something to hide behind editing.
+   */
+  const caveat = page.getByTestId("extractor-caveat");
+  await expect(caveat).toBeVisible();
+  await expect(caveat).toContainText("deterministic extractor");
+  await expect(caveat).toContainText("docs/model-path-results.md");
+
+  // Above the fold: it must be visible without scrolling, at the recording viewport.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(caveat).toBeInViewport();
+});
