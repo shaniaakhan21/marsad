@@ -1,4 +1,4 @@
-.PHONY: install test test-network test-e2e test-boundary test-llm run down demo lint migrate
+.PHONY: install test test-network test-e2e test-boundary test-llm run down demo record lint migrate
 install:
 	pip install -e packages/contracts
 	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
@@ -38,3 +38,9 @@ down:
 	docker compose down -v
 demo:
 	python scripts/seed_demo.py
+
+# One command to put the machine in recording state: stack up, health-checked, seeded
+# if empty, and /demo opened at a fixed viewport so every take has the same layout.
+# Shot list and timings: docs/recording.md
+record:
+	./scripts/record.sh
