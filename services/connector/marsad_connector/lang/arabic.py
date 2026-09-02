@@ -28,9 +28,9 @@ the code rather than a convention someone has to remember.
 
 Why they are vendored rather than imported
 ------------------------------------------
-`camel-tools` declares torch, transformers and the NVIDIA CUDA runtime as hard
-dependencies. Installing it put an 8.7GB image inside an institution's perimeter to
-obtain four character maps — a deep-learning stack shipped, and its attack surface
+`camel-tools` declares torch and transformers as hard dependencies, and torch's Linux
+wheel pulls roughly thirty NVIDIA CUDA packages with it. Installing it put a 3.29GB
+image inside an institution's perimeter to obtain four character maps — a deep-learning stack shipped, and its attack surface
 accepted, for four `str.translate` tables. That contradicts the argument this project
 makes everywhere else about what belongs inside the boundary, and three connectors at
 that size do not fit on a modest VPS.
