@@ -1,0 +1,3032 @@
+{
+ "model": "qwen2.5:3b-instruct",
+ "runs": 2,
+ "variant": "services_schema:SERVICES_ONLY_SCHEMA",
+ "results": [
+  {
+   "id": "01_clean_phishing",
+   "language": "en",
+   "run": 1,
+   "seconds": 33.3,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "online banking"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "https://sso-almaha-verify.com/portal"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1010",
+      "T1020",
+      "T1062.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-08-19T08:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "02_ransomware_critical",
+   "language": "en",
+   "run": 1,
+   "seconds": 29.6,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "RANSOMWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "core banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "URL",
+       "value": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-03-04T02:15:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "03_ddos_trading",
+   "language": "en",
+   "run": 1,
+   "seconds": 29.5,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DENIAL_OF_SERVICE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "trading platform"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "91.219.238.12"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-05-11T09:30:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "04_vendor_breach",
+   "language": "en",
+   "run": 1,
+   "seconds": 39.5,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "kyc service"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "Nexa KYC"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-20T11:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "05_bec_invoice",
+   "language": "en",
+   "run": 1,
+   "seconds": 44.6,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "BUSINESS_EMAIL_COMPROMISE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "payment gateway"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "supplier"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-06-02T14:20:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "06_insider",
+   "language": "en",
+   "run": 1,
+   "seconds": 44.6,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "custody platform"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1566.001"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-04-09T17:45:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "07_webshell_exploit",
+   "language": "en",
+   "run": 1,
+   "seconds": 27.6,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "INSIDER",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "client portal"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "internet-facing VPN appliance"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "FILE_HASH",
+       "value": "9f2c4a1be7d305f6a8c9e0d1b2a3f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1021.002"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-07-15T03:05:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "08_password_spray",
+   "language": "en",
+   "run": 1,
+   "seconds": 18.0,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "client portal"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "evil-login[.]xyz"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1158.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-01-30T22:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "09_malware_implant",
+   "language": "en",
+   "run": 1,
+   "seconds": 30.8,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "treasury system"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "external cloud storage bucket"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "45.83.220.9"
+      }
+     ],
+     "confidence": 0.0,
+     "rejected": [
+      {
+       "type": "URL",
+       "value": "http://45.83.220.9"
+      }
+     ]
+    },
+    "techniques": {
+     "value": [
+      "T1087.004",
+      "T1087.005"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-09-01T06:30:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "10_almost_nothing",
+   "language": "en",
+   "run": 1,
+   "seconds": 16.6,
+   "fields": {
+    "severity": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "11_typos_chat",
+   "language": "en",
+   "run": 1,
+   "seconds": 31.1,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "online banking",
+      "mobile app"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001",
+      "T1078.002"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2023-04-05T10:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "12_all_caps",
+   "language": "en",
+   "run": 1,
+   "seconds": 52.4,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "RANSOMWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "settlement system"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-08-02T04:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "13_ticket_paste",
+   "language": "en",
+   "run": 1,
+   "seconds": 19.2,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "card processing"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-05-22T13:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "14_run_on",
+   "language": "en",
+   "run": 1,
+   "seconds": 19.5,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "internet banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.8,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-10-03T07:15:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "15_bullets",
+   "language": "en",
+   "run": 1,
+   "seconds": 19.6,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DENIAL_OF_SERVICE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "market data feed"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "203.0.113.44"
+      }
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1158.003"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-11-19T10:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "16_relative_time_only",
+   "language": "en",
+   "run": 1,
+   "seconds": 19.2,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "email service"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2023-04-06T12:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "17_many_indicators",
+   "language": "en",
+   "run": 1,
+   "seconds": 62.5,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "payment gateway",
+      "online banking"
+     ],
+     "confidence": 0.8,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "malicious-cdn[.]ru"
+     ],
+     "confidence": 0.7,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "198.51.100.7"
+      },
+      {
+       "type": "URL",
+       "value": "https://malicious-cdn.ru/payload.bin"
+      },
+      {
+       "type": "FILE_HASH",
+       "value": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+       "type": "WALLET",
+       "value": "0x52908400098527886E0F7030069857D2E4169EE7"
+      },
+      {
+       "type": "IBAN",
+       "value": "GB29 NWBK 6016 1331 9268 19"
+      }
+     ],
+     "confidence": 0.9,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1059.003",
+      "T1059.004"
+     ],
+     "confidence": 0.6,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-12-01T09:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "18_mixed_script",
+   "language": "en",
+   "run": 1,
+   "seconds": 23.8,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "retail banking portal"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "fake-bank-ae[.]com"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-14T08:45:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "19_vague_low",
+   "language": "en",
+   "run": 1,
+   "seconds": 15.7,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2023-01-15T14:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "20_messy_long",
+   "language": "en",
+   "run": 1,
+   "seconds": 19.6,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "INSIDER",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "mobile banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "Meridian Cloud"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "185.220.101.44"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1158.003"
+     ],
+     "confidence": 0.7,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-07-07T21:10:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_01_phishing",
+   "language": "ar",
+   "run": 1,
+   "seconds": 27.3,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "swift gateway"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "https://sso-fake-portal.com"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.5,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-08-19T08:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_02_ransomware",
+   "language": "ar",
+   "run": 1,
+   "seconds": 31.7,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "RANSOMWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "trading platform"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "none"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1068.001",
+      "T1059.002"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-03-04T02:15:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_03_codeswitch_severity",
+   "language": "ar",
+   "run": 1,
+   "seconds": 25.3,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "trading platform"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "fake-bank-ae[.]com"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1079.003"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-14T08:45:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_04_ddos",
+   "language": "ar",
+   "run": 1,
+   "seconds": 22.4,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DENIAL_OF_SERVICE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "custody platform"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "91.219.238.12"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "91.219.238.12"
+      }
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1010",
+      "T1020"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-05-11T09:30:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_05_vendor_latin_name",
+   "language": "ar",
+   "run": 1,
+   "seconds": 27.1,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "client portal"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "Nexa KYC"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.7,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-20T11:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_06_insider",
+   "language": "ar",
+   "run": 1,
+   "seconds": 17.1,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-04-09T17:45:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_07_credentials_mixed",
+   "language": "ar",
+   "run": 1,
+   "seconds": 32.2,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "INSIDER",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "online banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "185.220.101[.]44"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.004"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-01-30T22:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_08_sparse",
+   "language": "ar",
+   "run": 1,
+   "seconds": 42.4,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "INSIDER",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2023-04-01T12:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_09_diacritics",
+   "language": "ar",
+   "run": 1,
+   "seconds": 30.0,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "payment gateway"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1041.001"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-06-02T14:20:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_10_negation",
+   "language": "ar",
+   "run": 1,
+   "seconds": 29.0,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "internet banking"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "none"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1089.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-09-01T06:30:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "01_clean_phishing",
+   "language": "en",
+   "run": 2,
+   "seconds": 20.9,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "online banking"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "https://sso-almaha-verify.com/portal"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1021.002",
+      "T1021.003"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-08-19T08:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "02_ransomware_critical",
+   "language": "en",
+   "run": 2,
+   "seconds": 26.2,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "RANSOMWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "core banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "URL",
+       "value": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-03-04T02:15:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "03_ddos_trading",
+   "language": "en",
+   "run": 2,
+   "seconds": 27.2,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DENIAL_OF_SERVICE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "trading platform"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "91.219.238.12"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-05-11T09:30:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "04_vendor_breach",
+   "language": "en",
+   "run": 2,
+   "seconds": 17.7,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "kyc service"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "Nexa KYC"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-20T11:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "05_bec_invoice",
+   "language": "en",
+   "run": 2,
+   "seconds": 17.4,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "BUSINESS_EMAIL_COMPROMISE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "payment gateway"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "supplier"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-06-02T14:20:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "06_insider",
+   "language": "en",
+   "run": 2,
+   "seconds": 20.6,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "custody platform"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1566.001"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-04-09T17:45:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "07_webshell_exploit",
+   "language": "en",
+   "run": 2,
+   "seconds": 23.4,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "INSIDER",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "client portal"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "internet-facing VPN appliance"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "FILE_HASH",
+       "value": "9f2c4a1be7d305f6a8c9e0d1b2a3f4c5d6e7f8091a2b3c4d5e6f708192a3b4c5"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1021.002"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-07-15T03:05:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "08_password_spray",
+   "language": "en",
+   "run": 2,
+   "seconds": 17.0,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "client portal"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "evil-login[.]xyz"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1158.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-01-30T22:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "09_malware_implant",
+   "language": "en",
+   "run": 2,
+   "seconds": 28.0,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "treasury system"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "external cloud storage bucket"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "45.83.220.9"
+      }
+     ],
+     "confidence": 0.0,
+     "rejected": [
+      {
+       "type": "URL",
+       "value": "http://45.83.220.9"
+      }
+     ]
+    },
+    "techniques": {
+     "value": [
+      "T1087.004",
+      "T1087.005"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-09-01T06:30:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "10_almost_nothing",
+   "language": "en",
+   "run": 2,
+   "seconds": 13.0,
+   "fields": {
+    "severity": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": null,
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "11_typos_chat",
+   "language": "en",
+   "run": 2,
+   "seconds": 23.1,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "online banking",
+      "mobile app"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001",
+      "T1078.002"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2023-04-05T10:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "12_all_caps",
+   "language": "en",
+   "run": 2,
+   "seconds": 25.7,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "RANSOMWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "settlement system"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-08-02T04:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "13_ticket_paste",
+   "language": "en",
+   "run": 2,
+   "seconds": 23.1,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "card processing"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-05-22T13:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "14_run_on",
+   "language": "en",
+   "run": 2,
+   "seconds": 18.3,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "internet banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.8,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-10-03T07:15:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "15_bullets",
+   "language": "en",
+   "run": 2,
+   "seconds": 20.5,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DENIAL_OF_SERVICE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "market data feed"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "203.0.113.44"
+      }
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1158.003"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-11-19T10:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "16_relative_time_only",
+   "language": "en",
+   "run": 2,
+   "seconds": 18.4,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "email service"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2023-04-06T12:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "17_many_indicators",
+   "language": "en",
+   "run": 2,
+   "seconds": 71.1,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "198.51.100.7"
+      },
+      {
+       "type": "URL",
+       "value": "malicious-cdn[.]ru"
+      },
+      {
+       "type": "URL",
+       "value": "https://malicious-cdn.ru/payload.bin"
+      },
+      {
+       "type": "FILE_HASH",
+       "value": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+       "type": "WALLET",
+       "value": "0x52908400098527886E0F7030069857D2E4169EE7"
+      },
+      {
+       "type": "IBAN",
+       "value": "GB29 NWBK 6016 1331 9268 19"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-12-01T09:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "18_mixed_script",
+   "language": "en",
+   "run": 2,
+   "seconds": 35.4,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "retail banking portal"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "fake-bank-ae[.]com"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-14T08:45:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "19_vague_low",
+   "language": "en",
+   "run": 2,
+   "seconds": 47.4,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2023-01-15T14:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "20_messy_long",
+   "language": "en",
+   "run": 2,
+   "seconds": 79.3,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "CREDENTIAL_COMPROMISE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "mobile banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "Meridian Cloud"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "185.220.101.44"
+      }
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-07-07T21:10:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_01_phishing",
+   "language": "ar",
+   "run": 2,
+   "seconds": 54.0,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "swift gateway"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "https://sso-fake-portal.com"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.001"
+     ],
+     "confidence": 0.5,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-08-19T08:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_02_ransomware",
+   "language": "ar",
+   "run": 2,
+   "seconds": 28.1,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "RANSOMWARE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "trading platform"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1059.001",
+      "T1059.010"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-03-04T02:15:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_03_codeswitch_severity",
+   "language": "ar",
+   "run": 2,
+   "seconds": 33.5,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "trading platform"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "fake-bank-ae[.]com"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1079.003"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-14T08:45:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_04_ddos",
+   "language": "ar",
+   "run": 2,
+   "seconds": 22.1,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DENIAL_OF_SERVICE",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "custody platform"
+     ],
+     "confidence": 0.7,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "91.219.238.12"
+     ],
+     "confidence": 0.9,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [
+      {
+       "type": "IP",
+       "value": "91.219.238.12"
+      }
+     ],
+     "confidence": 0.9,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1010",
+      "T1020"
+     ],
+     "confidence": 0.8,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-05-11T09:30:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_05_vendor_latin_name",
+   "language": "ar",
+   "run": 2,
+   "seconds": 26.4,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "client portal"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "Nexa KYC"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1078.004"
+     ],
+     "confidence": 0.75,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-02-20T11:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_06_insider",
+   "language": "ar",
+   "run": 2,
+   "seconds": 24.4,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "DATA_EXFILTRATION",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-04-09T17:45:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_07_credentials_mixed",
+   "language": "ar",
+   "run": 2,
+   "seconds": 30.4,
+   "fields": {
+    "severity": {
+     "value": "HIGH",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "INSIDER",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "online banking"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-01-30T22:00:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_08_sparse",
+   "language": "ar",
+   "run": 2,
+   "seconds": 16.5,
+   "fields": {
+    "severity": {
+     "value": "LOW",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "INSIDER",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2022-05-06T12:00:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_09_diacritics",
+   "language": "ar",
+   "run": 2,
+   "seconds": 19.9,
+   "fields": {
+    "severity": {
+     "value": "CRITICAL",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "PHISHING",
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "payment gateway"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1040.006",
+      "T1040.007"
+     ],
+     "confidence": 1.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-06-02T14:20:00Z",
+     "confidence": 1.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  },
+  {
+   "id": "ar_10_negation",
+   "language": "ar",
+   "run": 2,
+   "seconds": 44.2,
+   "fields": {
+    "severity": {
+     "value": "MEDIUM",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "category": {
+     "value": "MALWARE",
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "affected_services": {
+     "value": [
+      "internet banking"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "third_party_dependencies": {
+     "value": [
+      "none"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "indicators": {
+     "value": [],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "techniques": {
+     "value": [
+      "T1089.001"
+     ],
+     "confidence": 0.0,
+     "rejected": []
+    },
+    "detected_at": {
+     "value": "2026-09-01T06:30:00Z",
+     "confidence": 0.0,
+     "rejected": []
+    }
+   },
+   "error": null
+  }
+ ]
+}

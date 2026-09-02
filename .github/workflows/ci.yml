@@ -1,0 +1,131 @@
+# CI exists for one reason: so a future refactor cannot silently breach the privacy
+# boundary. The canary job proves nothing planted inside an institution reaches the
+# core; the boundary job proves a connector cannot reach the core at all.
+#
+# Both are required. A change that breaks either is a change that breaks the only
+# claim MARSAD makes.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend suite (includes the canary test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -e packages/contracts
+          pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx \
+                      sqlalchemy "psycopg[binary]" alembic openpyxl pytest ruff
+          # The oracle the vendored Arabic normalisation is checked against, codepoint
+          # by codepoint. A test dependency only — never in the connector image.
+          pip install "camel-tools>=1.5"
+
+      - name: Full suite
+        run: python -m pytest tests/ -v
+
+      # Called out separately so a failure here is unmistakable in the run summary:
+      # this is the central privacy claim, not a unit test.
+      - name: Canary — nothing from inside the institution reaches the core
+        run: python -m pytest tests/test_canary.py -v
+
+      # The separation that would be destroyed most quietly: it is a configuration,
+      # invisible in code review, and sharing one database makes narrative reachable
+      # from the core without a line changing.
+      - name: Persistence — edge and core databases stay separate
+        run: python -m pytest tests/test_persistence.py -v
+
+      # Vendoring is only safe while this passes: every codepoint in the Arabic block
+      # must normalise identically to the real camel-tools.
+      - name: Vendored Arabic normalisation matches CAMeL Tools
+        run: python -m pytest tests/test_vendored_normalisation.py -v
+
+      - name: Migrations run from empty to current, both databases
+        run: |
+          rm -f /tmp/ci_core.db /tmp/ci_edge.db
+          (cd services/core && MARSAD_CORE_DATABASE_URL=sqlite:////tmp/ci_core.db \
+             alembic upgrade head)
+          (cd services/connector && MARSAD_DATABASE_URL=sqlite:////tmp/ci_edge.db \
+             alembic upgrade head)
+
+      # The repo does not lint clean; the rule is a ratchet, not a gate. See CLAUDE.md.
+      - name: Lint ratchet (must not exceed the recorded baseline)
+        run: |
+          BASELINE=30
+          COUNT=$(ruff check packages services tests --output-format=concise | grep -c ':' || true)
+          echo "ruff findings: $COUNT (baseline $BASELINE)"
+          if [ "$COUNT" -gt "$BASELINE" ]; then
+            echo "::error::lint regressed: $COUNT findings, baseline is $BASELINE"
+            ruff check packages services tests --output-format=concise
+            exit 1
+          fi
+
+  boundary:
+    name: Network boundary (Docker isolation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test deps
+        run: pip install pytest httpx
+
+      - name: Build and start the federation
+        run: docker compose up -d --build
+
+      # The connector image once shipped without camel-tools and would have failed at
+      # startup while every test passed. A container that boots is now checked, not
+      # assumed.
+      - name: Every container actually booted
+        run: |
+          sleep 10
+          docker compose ps
+          for service in core connector-almaha connector-gulfsec connector-emcap; do
+            state=$(docker compose ps --status running --services | grep -c "^$service$" || true)
+            if [ "$state" -ne 1 ]; then
+              echo "::error::$service is not running"
+              docker compose logs "$service" --tail=60
+              exit 1
+            fi
+          done
+
+      - name: Wait for the stack
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health > /dev/null \
+               && curl -sf http://localhost:8101/health > /dev/null; then
+              echo "stack ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::stack did not become ready"
+          docker compose logs --tail=80
+          exit 1
+
+      - name: Boundary suite — isolation must hold at the network layer
+        run: python -m pytest tests/test_network_boundary.py -v -m docker
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker network ls
+          docker compose logs --tail=120
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

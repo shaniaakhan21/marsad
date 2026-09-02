@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api, connectors } from "@/lib/api";
 
 const TABS = [
+  { href: "/demo", n: "00", label: "Guided demo", hint: "The whole thing, end to end, in ninety seconds" },
   { href: "/", n: "01", label: "Operations", hint: "Watch three firms warn each other, live" },
   { href: "/report", n: "02", label: "Report & guardrails", hint: "File a report and check every deadline" },
   { href: "/exposure", n: "03", label: "Systemic exposure", hint: "Which shared provider is riskiest, in AED" },

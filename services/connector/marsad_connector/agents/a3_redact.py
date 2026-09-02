@@ -13,6 +13,31 @@ reads it.
 
 An institution's security team should be able to audit this file plus
 `marsad_contracts.boundary` and be satisfied. Keep it short enough that they will.
+
+The one exemption in the leak guard
+-----------------------------------
+`_assert_no_leakage` compares long words from the narrative against the outbound
+payload and aborts on a match. It skips exactly one class of match: text that is a
+substring of the `coarse.ts_bucket` value this submission already carries.
+
+Why the exemption exists. The contract deliberately emits an hour-bucketed detection
+time, and analysts routinely write that time into the narrative ("detected at
+2026-08-19 08:00 UTC"). Without the exemption the guard aborts ordinary, correct
+submissions and reports them as a defect — and a guard that cries wolf is one an
+operator switches off, which loses far more than the false positive cost.
+
+Why it cannot widen into a hole. The exempt text is not an arbitrary allowance: a
+token is skipped only when it appears inside the ISO rendering of the timestamp we
+just emitted. That rendering is produced from a validated `datetime` that has been
+truncated to the hour, so its alphabet is digits, `-`, `:`, `+`, `T` and nothing
+else. No hostname, no account number, no name, no analyst prose can be a substring
+of such a string — there is nowhere in it for an identifier to hide. The exemption
+therefore cannot be widened by an attacker or by accident; widening it would require
+editing this rule, which is a security review.
+
+`test_the_timestamp_exemption_did_not_disarm_the_leak_guard` holds the line: it
+proves the guard still fires on narrative text, and still fires on a date-shaped
+word that is *not* the timestamp this payload carries.
 """
 
 from __future__ import annotations
@@ -29,8 +54,8 @@ from marsad_contracts.boundary import (
     IndicatorType,
     KeyedToken,
     ObligationReceiptRef,
-    SeverityBand,
     Sector,
+    SeverityBand,
     SizeBand,
 )
 
@@ -213,6 +238,15 @@ class RedactionAgent:
         """
         blob = submission.model_dump_json().lower()
 
+        # The contract deliberately carries an hour-bucketed detection time, so a
+        # narrative that states when the incident was detected will always "appear"
+        # in the payload. Exempt exactly that text and nothing else: a token is
+        # skipped only when it is literally part of the timestamp we just emitted.
+        # This is narrow on purpose — the guard must keep firing on every other word,
+        # and a guard that cries wolf on ordinary incidents is a guard someone
+        # switches off, which is worse than the false positive it was raising.
+        declared = submission.coarse.ts_bucket.isoformat().lower()
+
         secrets: list[str] = []
         if incident.narrative:
             secrets += [w for w in incident.narrative.split() if len(w) > 7]
@@ -225,6 +259,8 @@ class RedactionAgent:
 
         for s in secrets:
             if s.lower() in blob:
+                if s.lower() in declared:
+                    continue
                 raise RedactionError(
                     f"LEAK GUARD TRIPPED: {s[:12]!r}… appears in the outbound payload. "
                     "Submission aborted. This is a defect, not a data problem."

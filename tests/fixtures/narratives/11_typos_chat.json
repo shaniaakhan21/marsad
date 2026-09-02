@@ -1,0 +1,24 @@
+{
+  "id": "11_typos_chat",
+  "language": "en",
+  "messiness": "typo-ridden, chat register",
+  "narrative": "ok so we got hit by a phishing wave this morning, ppl clicked teh link at hxxp bad-domain[.]top and 2 ppl put in there passwrds. credentials were harvested. mobile app seems fine",
+  "expected": {
+    "severity": "HIGH",
+    "category": "PHISHING",
+    "affected_services": [
+      "mobile app"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "DOMAIN",
+        "bad-domain[.]top"
+      ]
+    ],
+    "techniques": [
+      "T1566.002"
+    ],
+    "detected_at": null
+  }
+}

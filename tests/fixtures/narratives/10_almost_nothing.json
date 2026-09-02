@@ -1,0 +1,17 @@
+{
+  "id": "10_almost_nothing",
+  "language": "en",
+  "messiness": "sparse — most fields genuinely absent",
+  "narrative": "Something odd happened with our email service. Still looking into it.",
+  "expected": {
+    "severity": null,
+    "category": null,
+    "affected_services": [
+      "email service"
+    ],
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": null,
+    "detected_at": null
+  }
+}

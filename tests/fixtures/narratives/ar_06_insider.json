@@ -1,0 +1,15 @@
+{
+  "id": "ar_06_insider",
+  "language": "ar",
+  "messiness": "Arabic, insider",
+  "narrative": "قام موظف سابق بنسخ سجلات العملاء إلى وسيط تخزين شخصي في 2026-04-09 17:45 UTC. الأثر: منخفض.",
+  "expected": {
+    "severity": "LOW",
+    "category": "INSIDER",
+    "affected_services": null,
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": null,
+    "detected_at": "2026-04-09T17:45:00+00:00"
+  }
+}

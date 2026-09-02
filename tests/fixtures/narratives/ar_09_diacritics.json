@@ -1,0 +1,20 @@
+{
+  "id": "ar_09_diacritics",
+  "language": "ar",
+  "messiness": "fully diacritised, hamza and teh-marbuta variants",
+  "narrative": "هَجْمَةُ تَصَيُّدٍ اسْتَهْدَفَتْ بَوَّابَةَ الدَّفْعِ فِي 2026-06-02 14:20 UTC. الأَثَرُ: عَالِيَة. تَمَّ تَشْفِيرُ المِلَفَّاتِ.",
+  "expected": {
+    "severity": "HIGH",
+    "category": "PHISHING",
+    "affected_services": [
+      "payment gateway"
+    ],
+    "third_party_dependencies": null,
+    "indicators": null,
+    "techniques": [
+      "T1486",
+      "T1566"
+    ],
+    "detected_at": "2026-06-02T14:20:00+00:00"
+  }
+}

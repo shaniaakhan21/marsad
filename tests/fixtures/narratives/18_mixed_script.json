@@ -1,0 +1,24 @@
+{
+  "id": "18_mixed_script",
+  "language": "en",
+  "messiness": "mixed Arabic/English",
+  "narrative": "تقرير حادث — a phishing email (بريد احتيالي) reached the retail banking portal team on 2026-02-14 08:45 UTC. Credentials were submitted to fake-bank-ae[.]com. الأثر: moderate.",
+  "expected": {
+    "severity": "MEDIUM",
+    "category": "PHISHING",
+    "affected_services": [
+      "retail banking portal"
+    ],
+    "third_party_dependencies": null,
+    "indicators": [
+      [
+        "DOMAIN",
+        "fake-bank-ae[.]com"
+      ]
+    ],
+    "techniques": [
+      "T1566"
+    ],
+    "detected_at": "2026-02-14T08:45:00+00:00"
+  }
+}

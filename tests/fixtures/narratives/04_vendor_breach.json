@@ -1,0 +1,19 @@
+{
+  "id": "04_vendor_breach",
+  "language": "en",
+  "messiness": "clean prose, third party",
+  "narrative": "Our provider Nexa KYC disclosed a breach on 2026-02-20 11:00 UTC affecting identity verification records. Our KYC service was degraded. No credentials of ours were stolen.",
+  "expected": {
+    "severity": null,
+    "category": "THIRD_PARTY_COMPROMISE",
+    "affected_services": [
+      "kyc service"
+    ],
+    "third_party_dependencies": [
+      "Nexa KYC"
+    ],
+    "indicators": null,
+    "techniques": null,
+    "detected_at": "2026-02-20T11:00:00+00:00"
+  }
+}
