@@ -1,0 +1,100 @@
+# MARSAD public edge.
+#
+# Three jobs, and they are deliberately different from each other:
+#
+#   1. Automatic TLS for the dashboard's read-only API on a real domain.
+#   2. Mutual TLS on the submission route, so a connector on other hardware proves
+#      who it is with a client certificate rather than a bearer token.
+#   3. Limits, because this is a public demo. An unmetered LLM endpoint on the open
+#      internet is someone else's free compute, and an unmetered write endpoint is a
+#      way to fill the operator's database for free.
+#
+# Read the two server blocks as two different trust levels sharing one process.
+
+{
+	email {$ACME_EMAIL}
+	# Reject anything not matched by a site block rather than serving a default.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Public, read-only. What the dashboard needs and nothing else.
+# ---------------------------------------------------------------------------
+{$CORE_DOMAIN} {
+	encode zstd gzip
+
+	# The demo is public, so every route below is rate limited. Numbers are per
+	# client IP; a dashboard render costs a handful of requests, so 60/min is
+	# generous for a human and useless for a scraper.
+	rate_limit {
+		zone public_reads {
+			key {remote_host}
+			events 60
+			window 1m
+		}
+	}
+
+	# Read endpoints the dashboard actually calls. Listed explicitly: a public demo
+	# should expose the routes it needs, not everything the core happens to serve.
+	@reads {
+		method GET
+		path /health /v1/correlations /v1/concentration /v1/roadmap
+		path /v1/data/sources /v1/data/market /v1/data/cohorts /v1/data/freshness
+	}
+	handle @reads {
+		reverse_proxy core:8000
+	}
+
+	# The submission endpoint is NOT reachable here. It requires a client
+	# certificate, which this block does not ask for — see the mTLS block below.
+	handle /v1/submissions* {
+		respond `{"error":"submissions require mutual TLS on port 8443"}` 403
+	}
+
+	handle {
+		respond `{"error":"not part of the public demo surface"}` 404
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Mutual TLS. The only way a boundary payload enters, and the only route a
+# connector on separate hardware uses.
+# ---------------------------------------------------------------------------
+{$CORE_DOMAIN}:8443 {
+	tls {
+		client_auth {
+			# A connector without a certificate signed by the federation CA does not
+			# complete the handshake. It never reaches an application check, so this
+			# is refused at the TLS layer rather than by our code.
+			mode require_and_verify
+			trust_pool file {$CA_CERT}
+		}
+	}
+
+	# Even authenticated, a connector may only submit. Everything else about the
+	# core — correlations, concentration, other institutions' data — is none of an
+	# institution's business.
+	@submit {
+		method POST
+		path /v1/submissions
+	}
+	handle @submit {
+		rate_limit {
+			zone submissions {
+				key {http.request.tls.client.subject}
+				events 30
+				window 1m
+			}
+		}
+		# Pass the verified identity through so core can log which pseudonym
+		# submitted without trusting anything the client asserts in a header.
+		header_up X-Client-Cert-Subject {http.request.tls.client.subject}
+		reverse_proxy core:8000
+	}
+
+	handle {
+		respond `{"error":"mutual TLS grants POST /v1/submissions and nothing else"}` 403
+	}
+}

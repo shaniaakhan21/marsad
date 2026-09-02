@@ -447,9 +447,9 @@ def test_model_proposed_indicators_need_explicit_confirmation(monkeypatch):
 
     An empty list is a valid answer. Silence is not.
     """
-    from marsad_connector.agents.a2_extract import ExtractionAgent, ModelExtractor
+    from marsad_connector.agents.a2_extract import ExtractionAgent
 
-    narrative = ("Phishing at 2026-08-19 08:00 UTC from evil-model.com. Severity: HIGH.")
+    narrative = "Phishing at 2026-08-19 08:00 UTC from evil-model.com. Severity: HIGH."
 
     class FakeProvider:
         name = "fake"
@@ -467,11 +467,9 @@ def test_model_proposed_indicators_need_explicit_confirmation(monkeypatch):
                                 "evidence": "2026-08-19 08:00 UTC"},
             }
 
-    agent = ExtractionAgent()
-    agent._extractor = ModelExtractor(FakeProvider())
-    agent._is_model = True
-
-    draft = asyncio.run(agent.propose(narrative))
+    # Constructed through the real path rather than by patching internals: a fake
+    # provider that is not the StubProvider selects the model extractor.
+    draft = asyncio.run(ExtractionAgent(FakeProvider()).propose(narrative))
     assert draft.model_proposed
     assert draft.requires_indicator_confirmation
 
@@ -555,3 +553,97 @@ def test_an_out_of_range_confidence_is_malformed_not_low():
     good = _field("severity", "HIGH", 0.9, "Severity: HIGH", "Severity: HIGH")
     assert good.confidence == 0.9
     assert CONFIDENCE_RANGE == (0.0, 1.0)
+
+
+# ---------------------------------------------------------------- the public-demo budget
+
+
+def test_an_exhausted_model_budget_degrades_it_does_not_fail():
+    """
+    A public demo puts an LLM on the open internet, which is someone else's free
+    compute unless it is capped. But a cap that returns an error would make the
+    connector the reason an institution cannot file an incident, and MARSAD is
+    additive by design — it must never sit on the critical path.
+
+    So the budget degrades to the deterministic extractor. On this project's own
+    measurements that path is the more accurate one anyway, so the "degraded" mode is
+    better on most fields and merely lacks a model.
+    """
+    from marsad_connector.agents.a2_extract import ExtractionAgent
+    from marsad_connector.llm.budget import CallBudget
+
+    class FakeProvider:
+        name = "fake"
+        calls = 0
+
+        async def extract(self, text, schema):
+            FakeProvider.calls += 1
+            return {name: {"value": None, "confidence": 0.0, "evidence": None}
+                    for name in EXTRACTED_FIELDS}
+
+    narrative = "Phishing from evil-budget.com at 2026-08-19 08:00 UTC. Severity: HIGH."
+    agent = ExtractionAgent(FakeProvider(), budget=CallBudget(limit=1))
+
+    first = asyncio.run(agent.propose(narrative))
+    assert first.method == "model-v1"
+    assert first.model_proposed is True
+
+    second = asyncio.run(agent.propose(narrative))
+    assert second.method == "heuristic-v1", "the budget did not degrade the extractor"
+    assert second.model_proposed is False
+    assert FakeProvider.calls == 1, "a model call was made after the budget was spent"
+
+    # and the fallback still produces a usable incident
+    assert second.fields["severity"].value == "HIGH"
+    assert second.fields["indicators"].value
+
+
+def test_the_degradation_is_recorded_never_silent():
+    """
+    Nothing in this system degrades silently. The draft says which extractor ran, so
+    an analyst reviewing a field and a reviewer auditing later can both tell whether
+    a model was involved.
+    """
+    from marsad_connector.agents.a2_extract import ExtractionAgent
+    from marsad_connector.llm.budget import CallBudget
+
+    class FakeProvider:
+        name = "fake"
+
+        async def extract(self, text, schema):
+            return {name: {"value": None, "confidence": 0.0, "evidence": None}
+                    for name in EXTRACTED_FIELDS}
+
+    agent = ExtractionAgent(FakeProvider(), budget=CallBudget(limit=0))
+    draft = asyncio.run(agent.propose("Phishing at 2026-08-19 08:00 UTC. Severity: HIGH."))
+
+    assert draft.method == "heuristic-v1"
+    assert draft.as_dict()["method"] == "heuristic-v1"
+    assert draft.as_dict()["model_proposed"] is False
+
+
+def test_the_budget_counts_before_the_call_not_after():
+    """
+    A hanging or failing request still spends budget. Counting on completion would let
+    a stream of timeouts run past the ceiling — which is the shape of an abusive
+    request, not an unlucky one.
+    """
+    from marsad_connector.llm.budget import CallBudget
+
+    budget = CallBudget(limit=2)
+    assert budget.try_spend() and budget.try_spend()
+    assert not budget.try_spend()
+    assert budget.state().exhausted
+    assert budget.state().remaining == 0
+
+
+def test_the_budget_window_rolls():
+    from datetime import datetime, timedelta, timezone
+
+    from marsad_connector.llm.budget import CallBudget
+
+    start = datetime(2026, 9, 2, tzinfo=timezone.utc)
+    budget = CallBudget(limit=1, window_seconds=60, now=start)
+    assert budget.try_spend(start)
+    assert not budget.try_spend(start + timedelta(seconds=59))
+    assert budget.try_spend(start + timedelta(seconds=61))

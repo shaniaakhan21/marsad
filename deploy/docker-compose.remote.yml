@@ -1,0 +1,77 @@
+# SECOND VPS — institution C, alone.
+#
+# This file exists so the distributed claim is true rather than modelled. Connectors A
+# and B share a kernel with core; their isolation is Docker's word. C shares nothing —
+# different machine, different provider region if you like, reaching core across the
+# public internet — so its isolation is not a configuration anyone can undo by editing
+# a network stanza.
+#
+# Two consequences follow, and both are the point:
+#
+#   * C authenticates with a CLIENT CERTIFICATE, not a shared secret. A bearer token
+#     in an environment variable is readable by anyone with the image or the logs; a
+#     client key never leaves this host.
+#   * C reaches exactly one endpoint, POST /v1/submissions on port 8443. Everything
+#     else about core is refused at the edge — an institution has no business reading
+#     the operator's aggregate view.
+#
+# Nothing here is reachable from the main VPS. Core cannot open C's database, cannot
+# read C's incidents, and cannot initiate a connection to C at all: the traffic is
+# one-way, C to core, and this host publishes nothing but its own local dashboard port.
+networks:
+  edge_emcap: {}
+
+volumes:
+  edge_db_emcap_data: {}
+
+services:
+  edge-db-emcap:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: marsad
+      POSTGRES_PASSWORD: ${EDGE_DB_PASSWORD:?set EDGE_DB_PASSWORD}
+      POSTGRES_DB: marsad_edge
+    volumes: ["edge_db_emcap_data:/var/lib/postgresql/data"]
+    networks: [edge_emcap]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marsad -d marsad_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  connector-emcap:
+    build: { context: .., dockerfile: services/connector/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MARSAD_INSTITUTION_NAME: "Emirates Capital"
+      MARSAD_INSTITUTION_REF: "psd_emcap03"
+      MARSAD_SECTOR: INVEST
+      MARSAD_SIZE_BAND: MID
+      # Across the internet, to the mTLS port. Not a private address — that is the
+      # whole point of this file.
+      MARSAD_CORE_URL: "https://${CORE_DOMAIN:?set CORE_DOMAIN}:8443"
+      MARSAD_CORE_CLIENT_CERT: /etc/marsad/certs/psd_emcap03.crt
+      MARSAD_CORE_CLIENT_KEY: /etc/marsad/certs/psd_emcap03.key
+      MARSAD_CORE_CA_BUNDLE: /etc/marsad/certs/ca.crt
+      # Tokens must be comparable across institutions or correlation cannot fire, so
+      # this key is shared. It is also why the roadmap replaces HMAC with an OPRF
+      # under threshold custody before real data — see crypto/tokeniser.py.
+      MARSAD_TOKEN_KEY: ${TOKEN_KEY:?set TOKEN_KEY}
+      MARSAD_TOKENISER: hmac
+      MARSAD_STORE: sql
+      MARSAD_AUTO_CREATE_SCHEMA: "false"
+      MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:${EDGE_DB_PASSWORD}@edge-db-emcap:5432/marsad_edge"
+      MARSAD_RETENTION_DAYS: "90"
+      # No model on the cheap host. The deterministic extractor is the more accurate
+      # path on this project's own measurements anyway (docs/model-path-results.md),
+      # so institution C runs it and costs nothing to serve.
+      MARSAD_LLM_PROVIDER: stub
+    volumes:
+      - ./certs/psd_emcap03.crt:/etc/marsad/certs/psd_emcap03.crt:ro
+      - ./certs/psd_emcap03.key:/etc/marsad/certs/psd_emcap03.key:ro
+      - ./certs/ca.crt:/etc/marsad/certs/ca.crt:ro
+    ports: ["8103:8000"]
+    networks: [edge_emcap]
+    depends_on:
+      edge-db-emcap: { condition: service_healthy }

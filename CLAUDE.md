@@ -129,14 +129,14 @@ real portal is marked `@pytest.mark.network` and stays out of the default run.
   so upgrading a trust assumption is a change of binding, not a rewrite.
 - Weaker-than-target implementations self-label (`reduced_fidelity = True`) and that label
   propagates to every downstream alert. Nothing degrades silently.
-- `make lint` (`ruff check packages services tests`) is **not** clean: 30 pre-existing
+- `make lint` (`ruff check packages services tests`) is **not** clean: 27 pre-existing
   errors, mostly `# noqa: E402` on the test path shims and logically-grouped `__all__`.
   The rule is a ratchet — your change must not raise that number. Fix what you touch if
   you like, but do not leave it higher than you found it.
 
 ## The rule
 
-**Every change must leave `python -m pytest` fully green.** Currently 612 passed, 29 deselected
+**Every change must leave `python -m pytest` fully green.** Currently 623 passed, 29 deselected
 (the `network` marker — `make test-network`; and the `docker` marker — `make test-boundary`). No
 skips, no xfails, no "unrelated failure". If a test blocks you, it is a claim someone made
 deliberately — understand the claim before you touch it.
