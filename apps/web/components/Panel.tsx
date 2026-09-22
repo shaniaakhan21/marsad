@@ -6,12 +6,12 @@ export function Panel({
   flush?: boolean;
 }) {
   return (
-    <section className={`rounded-[14px] border border-line bg-panel ${flush ? "" : "p-[18px]"} ${className}`}>
-      <div className={`flex flex-wrap items-baseline justify-between gap-2 ${flush ? "px-[18px] pt-[18px]" : ""} mb-3`}>
-        <h2 className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-text-muted">
+    <section className={`rounded-[14px] border border-line bg-panel shadow-card ${flush ? "" : "p-5"} ${className}`}>
+      <div className={`flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 ${flush ? "px-5 pt-5" : ""} mb-4`}>
+        <h2 className="font-mono text-[12px] font-semibold uppercase tracking-[0.1em] text-text-muted">
           {label}
         </h2>
-        {note && <span className="font-mono text-[10px] text-text-faint">{note}</span>}
+        {note && <span className="font-mono text-[12px] text-text-faint">{note}</span>}
       </div>
       {children}
     </section>
@@ -44,8 +44,8 @@ export function Cell({
   }[tone];
   return (
     <div>
-      <p className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-text-faint">{label}</p>
-      <p className={`mt-1 font-mono text-[13px] font-semibold ${toneCls}`}>{value}</p>
+      <p className="font-mono text-[11.5px] uppercase tracking-[0.07em] text-text-faint">{label}</p>
+      <p className={`mt-1 font-mono text-[15px] font-semibold ${toneCls}`}>{value}</p>
     </div>
   );
 }
@@ -66,17 +66,17 @@ export function Stat({
   }[tone];
 
   return (
-    <div className="flex h-full flex-col rounded-[14px] border border-line bg-panel2 p-[18px]">
-      <p className={`font-mono text-[38px] font-bold leading-none tracking-[-0.02em] ${toneCls}`}>
+    <div className="flex h-full flex-col rounded-[14px] border border-line bg-panel p-5 shadow-card">
+      <p className={`font-mono text-[34px] font-semibold leading-none tracking-[-0.02em] ${toneCls}`}>
         {value}
-        {unit && <span className="ml-1.5 text-[13px] font-normal text-text-faint">{unit}</span>}
+        {unit && <span className="ml-2 text-[14px] font-normal tracking-normal text-text-muted">{unit}</span>}
       </p>
-      <p className="mt-3 text-[11px] leading-snug text-text-secondary">{label}</p>
+      <p className="mt-3 text-[14px] leading-snug text-text-secondary">{label}</p>
       <div className="mt-auto pt-3">
         {source && (
-          <p className="border-t border-line pt-2 text-[9.5px] leading-snug text-text-faint">{source}</p>
+          <p className="border-t border-line pt-2.5 text-[12px] leading-snug text-text-faint">{source}</p>
         )}
-        {chip && <p className="mt-1.5">{chip}</p>}
+        {chip && <p className="mt-2">{chip}</p>}
       </div>
     </div>
   );
@@ -86,7 +86,7 @@ export function Stat({
 export function Verify({ status }: { status: string }) {
   const map: Record<string, string> = {
     VERIFIED: "border-band-low/40 bg-band-low/10 text-band-low",
-    PAGE_VERIFIED: "border-line bg-panel2 text-text-secondary",
+    PAGE_VERIFIED: "border-line-strong bg-panel2 text-text-secondary",
     SYNDICATED: "border-band-mid/40 bg-band-mid/10 text-band-mid",
     UNREACHABLE: "border-ember/40 bg-ember/10 text-ember",
   };
@@ -105,8 +105,8 @@ export function Verify({ status }: { status: string }) {
   return (
     <span
       title={text[status] ?? status}
-      className={`whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[9px] font-semibold tracking-wide ${
-        map[status] ?? "border-line bg-panel2 text-text-muted"
+      className={`whitespace-nowrap rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide ${
+        map[status] ?? "border-line-strong bg-panel2 text-text-muted"
       }`}
     >
       {label[status] ?? status.replace("_", " ")}
@@ -157,7 +157,7 @@ export function FreshnessChip({
 
   const cls =
     status === "LIVE" ? "border-band-low/40 bg-band-low/10 text-band-low"
-    : status === "CACHED" ? "border-line bg-panel2 text-text-secondary"
+    : status === "CACHED" ? "border-line-strong bg-panel2 text-text-secondary"
     : "border-band-mid/40 bg-band-mid/10 text-band-mid";
 
   const title =
@@ -168,7 +168,7 @@ export function FreshnessChip({
   return (
     <span
       title={title}
-      className={`whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[9px] font-semibold tracking-wide ${cls}`}
+      className={`whitespace-nowrap rounded-full border px-2.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide ${cls}`}
     >
       {text}
     </span>
@@ -186,7 +186,7 @@ export function Meter({ pct, tone = "violet" }: { pct: number; tone?: string }) 
   const w = Math.max(0, Math.min(100, pct));
   const bar = METER_COLOR[tone] ?? "bg-volt";
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-sunken">
+    <div className="h-2 w-full overflow-hidden rounded-full bg-sunken">
       <div className={`h-full rounded-full ${bar}`} style={{ width: `${w}%` }} />
     </div>
   );
@@ -195,7 +195,7 @@ export function Meter({ pct, tone = "violet" }: { pct: number; tone?: string }) 
 /** Shown when the backend is not running — never a blank screen in front of a judge. */
 export function Offline({ detail }: { detail: string }) {
   return (
-    <div className="rounded-[14px] border border-band-mid/40 bg-band-mid/10 p-[18px] text-[11px] leading-relaxed">
+    <div className="rounded-[14px] border border-band-mid/40 bg-band-mid/10 p-5 text-[14px] leading-relaxed">
       <p className="font-semibold text-band-mid">This demo isn&apos;t connected to its backend.</p>
       <p className="mt-1 text-text-secondary">
         Start everything with <code className="font-mono text-volt">make run</code>, or start just
@@ -205,7 +205,7 @@ export function Offline({ detail }: { detail: string }) {
         </code>
         .
       </p>
-      <p className="mt-1 font-mono text-[10px] text-text-faint">{detail}</p>
+      <p className="mt-1.5 font-mono text-[12.5px] text-text-faint">{detail}</p>
     </div>
   );
 }

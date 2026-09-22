@@ -128,7 +128,7 @@ export default function Home() {
 
       <div className="space-y-4 p-8">
         {err && (
-          <p className="rounded-[14px] border border-ember/40 bg-ember/10 p-3 text-xs text-text-primary">
+          <p className="rounded-[14px] border border-ember/40 bg-ember/10 p-3 text-sm text-text-primary">
             {err} — this demo isn&apos;t running. Start it with <code className="font-mono">make run</code>.
           </p>
         )}
@@ -136,10 +136,10 @@ export default function Home() {
         <div className="grid gap-3.5 md:grid-cols-3">
           {SCENARIO.map((s, i) => (
             <Panel key={s.label} label={`Firm ${i + 1} of 3 — its own private files`}>
-              <p className="font-display text-[15px] font-bold text-text-primary">{s.label}</p>
-              <p className="mt-1 font-mono text-[11px] text-text-faint">{connectors[i]}</p>
-              <p className="mt-2 font-mono text-[11px] text-volt">{health[s.label] ?? "…"}</p>
-              <p className="mt-3 border-t border-line pt-2 text-[10px] leading-relaxed text-text-secondary">
+              <p className="font-display text-[18px] font-bold text-text-primary">{s.label}</p>
+              <p className="mt-1 font-mono text-[13.5px] text-text-faint">{connectors[i]}</p>
+              <p className="mt-2 font-mono text-[13.5px] text-volt">{health[s.label] ?? "…"}</p>
+              <p className="mt-3 border-t border-line pt-2 text-[12.5px] leading-relaxed text-text-secondary">
                 The incident report and any customer data never leave this firm.
               </p>
             </Panel>
@@ -148,7 +148,7 @@ export default function Home() {
 
         <div className="grid gap-3.5 lg:grid-cols-[1.15fr_0.85fr]">
           <Panel label="What actually left each firm">
-            <pre className="max-h-96 overflow-auto rounded-[8px] bg-sunken p-3 font-mono text-[10.5px] leading-relaxed text-text-secondary">
+            <pre className="max-h-96 overflow-auto rounded-[8px] bg-sunken p-3 font-mono text-[13px] leading-relaxed text-text-secondary">
 {payloads.length === 0
   ? "// Run the demo to see exactly what was shared."
   : JSON.stringify(payloads, null, 2)}
@@ -158,18 +158,18 @@ export default function Home() {
           <Panel label="Matches found — without seeing anyone's incident report">
             <div className="max-h-96 space-y-2 overflow-auto">
               {corr.length === 0 && (
-                <p className="text-[11px] text-text-faint">No matches yet.</p>
+                <p className="text-[13.5px] text-text-faint">No matches yet.</p>
               )}
               {corr.map((c, i) => (
                 <div
                   key={i}
-                  className={`rounded-[10px] border p-3 text-[11px] ${
+                  className={`rounded-[10px] border p-3 text-[13.5px] ${
                     c.kind === "EXACT_TOKEN"
                       ? "border-band-low/40 bg-band-low/10"
                       : "border-band-mid/40 bg-band-mid/10"
                   }`}
                 >
-                  <p className="mb-1 font-mono text-[10px] font-extrabold tracking-wide text-text-primary">
+                  <p className="mb-1 font-mono text-[12.5px] font-extrabold tracking-wide text-text-primary">
                     {c.kind === "EXACT_TOKEN"
                       ? "◆ SAME ATTACKER"
                       : "◆ SIMILAR ATTACK METHOD"}
@@ -180,11 +180,11 @@ export default function Home() {
                     {c.similarity != null && <> · {(c.similarity * 100).toFixed(0)}% alike</>}
                   </p>
                   {c.shared_techniques.length > 0 && (
-                    <p className="mt-1 font-mono text-[10px] text-text-faint">
+                    <p className="mt-1 font-mono text-[12.5px] text-text-faint">
                       {c.shared_techniques.join(", ")}
                     </p>
                   )}
-                  <p className="mt-1 text-[10px] text-text-faint">
+                  <p className="mt-1 text-[12.5px] text-text-faint">
                     Safe to publish as a group total: {c.publishable_as_aggregate ? "yes" : "not yet"}
                     {c.reduced_fidelity && " · found with our simpler, less exact method"}
                   </p>
@@ -194,7 +194,7 @@ export default function Home() {
           </Panel>
         </div>
 
-        <p className="border-t border-line pt-3 text-[10px] leading-relaxed text-text-faint">
+        <p className="border-t border-line pt-3 text-[12.5px] leading-relaxed text-text-faint">
           This demo uses made-up incidents. Right now, the scrambling we use is good enough
           for a demo but not for real institutional data — production needs a stronger method that even
           we couldn&apos;t reverse, with its key split across several parties so no one of them

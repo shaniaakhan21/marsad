@@ -1,13 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+}
+
 body {
-  background: #0A0C0E;
+  background: #F2F5F4;
+  color: #0D1715;
   min-height: 100vh;
-  font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: "IBM Plex Sans", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Arabic is set in a face drawn for it, not whatever the OS falls back to. Applied by
+   direction rather than by class so every right-to-left block gets it automatically. */
+[dir="rtl"] {
+  font-family: "IBM Plex Sans Arabic", "IBM Plex Sans", ui-sans-serif, sans-serif;
+  line-height: 1.8;
+}
+
+/* Figures line up in columns: token counts, deadlines, AED amounts, scores. */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+::selection {
+  background: rgba(11, 93, 96, 0.18);
+}
+
+:focus-visible {
+  outline: 2px solid #0B5D60;
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
