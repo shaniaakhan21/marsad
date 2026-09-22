@@ -204,7 +204,7 @@ export default function DemoPage() {
         */}
         <p
           data-testid="extractor-caveat"
-          className="rounded-[10px] border border-line bg-panel2/50 px-3 py-2 text-[10.5px] leading-relaxed text-text-secondary"
+          className="rounded-[10px] border border-line bg-panel2/50 px-3 py-2 text-[13px] leading-relaxed text-text-secondary"
         >
           <span className="font-mono font-bold text-text-muted">NOTE ·</span> This demo runs the{" "}
           <span className="font-semibold text-text-primary">deterministic extractor</span> for
@@ -214,7 +214,7 @@ export default function DemoPage() {
         </p>
 
         {err && (
-          <p className="rounded-[14px] border border-ember/40 bg-ember/10 p-3 text-xs text-text-primary">
+          <p className="rounded-[14px] border border-ember/40 bg-ember/10 p-3 text-sm text-text-primary">
             {err} — start the stack with <code className="font-mono">make run</code>.
           </p>
         )}
@@ -227,7 +227,7 @@ export default function DemoPage() {
               data-testid={`step-${s.n}`}
               data-active={step === s.n}
               data-done={step > s.n}
-              className={`rounded-[10px] border p-2.5 transition-colors ${
+              className={`rounded-[10px] border p-3 transition-colors ${
                 step === s.n
                   ? "border-volt/60 bg-volt/10"
                   : step > s.n
@@ -235,10 +235,10 @@ export default function DemoPage() {
                     : "border-line bg-panel2/40"
               }`}
             >
-              <p className="font-mono text-[9px] font-bold tracking-wide text-text-faint">
+              <p className="font-mono text-[11px] font-bold tracking-wide text-text-faint">
                 {step > s.n ? "✓" : s.n} · {s.title}
               </p>
-              <p className="mt-1 text-[9.5px] leading-tight text-text-secondary">{s.sub}</p>
+              <p className="mt-1 text-[11.5px] leading-tight text-text-secondary">{s.sub}</p>
             </div>
           ))}
         </div>
@@ -253,10 +253,10 @@ export default function DemoPage() {
         {active(2) && arPayload && (
           <Panel label="Step 2 — Gulf Securities, filed in Arabic · مقدَّم بالعربية">
             <div dir="rtl" data-testid="arabic-narrative"
-                 className="mb-3 rounded-[10px] border border-line bg-sunken p-3 text-[12px] leading-relaxed text-text-primary">
+                 className="mb-3 rounded-[10px] border border-line bg-sunken p-3 text-[14.5px] leading-relaxed text-text-primary">
               {AR_NARRATIVE}
             </div>
-            <p className="mb-3 text-[10px] leading-relaxed text-text-faint">
+            <p className="mb-3 text-[12.5px] leading-relaxed text-text-faint">
               Different infrastructure — a different domain entirely. Arabic is normalised before
               matching so spelling variants cannot break a correlation, and the analyst is always
               shown what they actually typed.
@@ -271,13 +271,13 @@ export default function DemoPage() {
         {active(3) && (
           <Panel label="Step 3 — what the core worked out, seeing only tokens">
             <div className="space-y-2" data-testid="correlations">
-              {corr.length === 0 && <p className="text-[11px] text-text-faint">No matches yet.</p>}
+              {corr.length === 0 && <p className="text-[13.5px] text-text-faint">No matches yet.</p>}
               {corr.map((c, i) => (
-                <div key={i} className={`rounded-[10px] border p-3 text-[11px] ${
+                <div key={i} className={`rounded-[10px] border p-3 text-[13.5px] ${
                   c.kind === "EXACT_TOKEN"
                     ? "border-band-low/40 bg-band-low/10"
                     : "border-band-mid/40 bg-band-mid/10"}`}>
-                  <p className="font-mono text-[10px] font-extrabold tracking-wide text-text-primary">
+                  <p className="font-mono text-[12.5px] font-extrabold tracking-wide text-text-primary">
                     {c.kind === "EXACT_TOKEN" ? "◆ SAME ATTACKER" : "◆ SIMILAR ATTACK METHOD"}
                   </p>
                   <p className="mt-1 text-text-secondary">
@@ -288,7 +288,7 @@ export default function DemoPage() {
                     )}
                   </p>
                   {c.kind === "TECHNIQUE_SIMILARITY" && (
-                    <p className="mt-1 text-[10px] text-band-mid">
+                    <p className="mt-1 text-[12.5px] text-band-mid">
                       The attacker changed infrastructure. The tradecraft gave them away — this is
                       the match an indicator-sharing platform would have missed.
                     </p>
@@ -302,10 +302,10 @@ export default function DemoPage() {
         {active(4) && (
           <Panel label="Step 4 — the k-anonymity gate">
             <div data-testid="k-gate" className="rounded-[10px] border border-band-mid/40 bg-band-mid/10 p-3">
-              <p className="font-mono text-[10.5px] font-bold tracking-wide text-band-mid">
+              <p className="font-mono text-[13px] font-bold tracking-wide text-band-mid">
                 ◆ SAFE TO PUBLISH AS A GROUP TOTAL: NOT YET
               </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-text-secondary">
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-text-secondary">
                 Two institutions are party to this match. Both are told directly — each learns a
                 peer count, never a peer identity. But the aggregate stays unpublished until three
                 distinct firms are involved, because a total drawn from two is a total that
@@ -319,13 +319,13 @@ export default function DemoPage() {
         {active(5) && exposure && (
           <Panel label="Step 5 — systemic exposure, priced">
             <div data-testid="exposure" className="rounded-[10px] border border-ember/40 bg-ember/10 p-3">
-              <p className="font-display text-[15px] font-bold text-text-primary">
+              <p className="font-display text-[18px] font-bold text-text-primary">
                 {exposure.provider}
               </p>
-              <p className="mt-1 font-mono text-[13px] font-semibold text-ember">
+              <p className="mt-1 font-mono text-[15.5px] font-semibold text-ember">
                 AED {exposure.aed.toFixed(2)} bn of daily traded value at risk · {exposure.band}
               </p>
-              <p className="mt-2 text-[10px] leading-relaxed text-text-secondary">
+              <p className="mt-2 text-[12.5px] leading-relaxed text-text-secondary">
                 A regulator cannot act on &ldquo;score 88.4&rdquo;. Every score is multiplied
                 through published CBUAE and CMA market figures, and the two independent sources
                 for daily traded value reconcile within 2%.
@@ -339,21 +339,21 @@ export default function DemoPage() {
           <Panel label="Step 6 — an attacker tries to switch the system off">
             <div data-testid="injection"
                  className="rounded-[10px] border border-ember/40 bg-ember/10 p-3">
-              <p className="font-mono text-[11px] font-extrabold tracking-wide text-text-primary">
+              <p className="font-mono text-[13.5px] font-extrabold tracking-wide text-text-primary">
                 ◆ TRICK DETECTED · risk score {sup.score}
               </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-text-secondary">
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-text-secondary">
                 {sup.analyst_message}
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {sup.findings.map((f) => (
                   <span key={f.signature}
-                        className="rounded-full border border-ember/40 bg-ember/10 px-2 py-0.5 font-mono text-[9.5px] text-ember">
+                        className="rounded-full border border-ember/40 bg-ember/10 px-2 py-0.5 font-mono text-[11.5px] text-ember">
                     {f.signature} +{f.weight}
                   </span>
                 ))}
               </div>
-              <p className="mt-2.5 border-t border-line pt-2 text-[10px] leading-relaxed text-text-faint">
+              <p className="mt-2.5 border-t border-line pt-2 text-[12.5px] leading-relaxed text-text-faint">
                 Detected with fixed rules, never a model — asking an AI whether text is trying to
                 fool an AI is asking the compromised component to police itself. And the report was
                 still filed at <span className="font-mono text-band-high">HIGH</span>: halting on
@@ -364,7 +364,7 @@ export default function DemoPage() {
         )}
 
         {state === "done" && (
-          <p className="rounded-[14px] border border-band-low/40 bg-band-low/[0.06] p-3 text-[11px] leading-relaxed text-text-primary"
+          <p className="rounded-[14px] border border-band-low/40 bg-band-low/[0.06] p-3 text-[13.5px] leading-relaxed text-text-primary"
              data-testid="demo-complete">
             <span className="font-mono font-bold text-band-low">◆ COMPLETE.</span> Two firms warned
             each other about one attacker, across two languages and rotated infrastructure — and

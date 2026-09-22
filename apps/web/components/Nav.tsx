@@ -42,26 +42,27 @@ export function Nav() {
   const live = counts.filter((c) => c !== null).length;
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 flex w-[250px] flex-col border-r border-line bg-rail">
-      <Link href="/" className="flex items-center gap-2.5 border-b border-line px-5 py-5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] bg-volt font-display text-sm font-extrabold text-ink">
+    <aside className="fixed inset-y-0 left-0 z-20 flex w-[250px] flex-col border-r border-rail-line bg-rail text-rail-text">
+      <Link href="/" className="flex items-center gap-3 border-b border-rail-line px-5 py-5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-rail-accent font-display text-[17px] font-bold text-rail">
           M
         </span>
         <span className="min-w-0">
-          <span className="block font-display text-[15px] font-extrabold leading-none tracking-[-0.02em] text-text-primary">
+          <span className="flex items-baseline gap-2 font-display text-[18px] font-bold leading-none tracking-[-0.01em] text-white">
             MARSAD
+            <span className="font-arabic text-[15px] font-medium text-rail-muted" lang="ar">مرصد</span>
           </span>
-          <span className="mt-1 block font-mono text-[9px] font-semibold uppercase tracking-[0.13em] text-text-muted">
+          <span className="mt-1.5 block font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-rail-muted">
             Cyber Resilience Obs.
           </span>
         </span>
       </Link>
 
-      <nav className="px-3 pt-4">
-        <p className="mb-2 px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-text-faint">
-          / Workspace
+      <nav className="px-3 pt-5">
+        <p className="mb-2 px-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-rail-faint">
+          Workspace
         </p>
-        <ul className="space-y-0.5">
+        <ul className="space-y-1">
           {TABS.map((t) => {
             const active = path === t.href;
             return (
@@ -69,13 +70,16 @@ export function Nav() {
                 <Link
                   href={t.href}
                   title={t.hint}
-                  className={`flex items-center gap-2.5 rounded-[8px] px-2.5 py-2 font-mono text-[12px] font-semibold transition-colors duration-150 ease-console ${
+                  aria-current={active ? "page" : undefined}
+                  className={`flex items-center gap-3 rounded-[8px] px-2.5 py-2.5 text-[14.5px] font-medium transition-colors duration-150 ease-console ${
                     active
-                      ? "bg-volt text-ink"
-                      : "text-text-secondary hover:bg-panel hover:text-text-primary"
+                      ? "bg-rail-accent text-rail"
+                      : "text-rail-text hover:bg-white/[0.07] hover:text-white"
                   }`}
                 >
-                  <span className={active ? "text-ink/55" : "text-text-faint"}>{t.n}</span>
+                  <span className={`font-mono text-[12px] ${active ? "text-rail/70" : "text-rail-faint"}`}>
+                    {t.n}
+                  </span>
                   <span className="truncate">{t.label}</span>
                 </Link>
               </li>
@@ -84,22 +88,22 @@ export function Nav() {
         </ul>
       </nav>
 
-      <div className="px-3 pt-6">
-        <p className="mb-2 px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-text-faint">
-          / Participants
+      <div className="px-3 pt-7">
+        <p className="mb-2 px-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-rail-faint">
+          Participants
         </p>
         <ul className="space-y-0.5">
           {PARTICIPANTS.map((label, i) => (
-            <li key={label} className="flex items-center justify-between gap-2 rounded-[8px] px-2.5 py-1.5">
-              <span className="flex min-w-0 items-center gap-2 text-[12px] text-text-secondary">
+            <li key={label} className="flex items-center justify-between gap-2 rounded-[8px] px-2.5 py-2">
+              <span className="flex min-w-0 items-center gap-2.5 text-[14px] text-rail-text">
                 <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    counts[i] !== null ? "bg-band-low" : "bg-text-faint"
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    counts[i] !== null ? "bg-rail-accent" : "bg-rail-faint/60"
                   }`}
                 />
                 <span className="truncate">{label}</span>
               </span>
-              <span className="shrink-0 font-mono text-[11px] text-text-faint">
+              <span className="shrink-0 font-mono text-[13px] text-rail-muted">
                 {counts[i] ?? "—"}
               </span>
             </li>
@@ -107,12 +111,12 @@ export function Nav() {
         </ul>
       </div>
 
-      <div className="mt-auto border-t border-line px-5 py-4">
-        <p className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-text-muted">
-          <span className="h-1.5 w-1.5 rounded-full bg-band-low" />
+      <div className="mt-auto border-t border-rail-line px-5 py-4">
+        <p className="flex items-center gap-2 font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em] text-rail-muted">
+          <span className={`h-2 w-2 rounded-full ${live > 0 ? "bg-rail-accent" : "bg-rail-faint/60"}`} />
           Feeds live · {live}/3
         </p>
-        <p className="mt-2 text-[10px] leading-tight text-text-faint">
+        <p className="mt-2 text-[12px] leading-snug text-rail-faint">
           Challenge #9 · Securities and Commodities Authority
           <br />
           now UAE Capital Market Authority
