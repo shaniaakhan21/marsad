@@ -157,15 +157,10 @@ in all three.
 platform faster than we can build a network. Our defence is the privacy
 architecture and the neutral position — not speed.
 
-## 8. Costs and what the prize money buys
+## 8. Costs
 
 Team as stated in the 90-day plan: 2 engineers, 1 founder on partnerships and
 legal, fractional cryptography review.
-
-The **AED 10,000** prototype-implementation allocation available in the
-post-hackathon phase is earmarked for the single largest infrastructure item in the
-90 days: **threshold key custody setup for the OPRF**. It is deliberately not spent
-on the demo, which already works.
 
 ## 9. What would make this fail
 

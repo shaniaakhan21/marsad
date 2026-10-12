@@ -124,7 +124,6 @@ concentration register, which needs no alerting at all.
 |---|---|
 | **Team** | 2 engineers, 1 founder on partnerships and legal, fractional cryptography review |
 | **Critical dependency** | One institution willing to host a connector in month 1 |
-| **Post-hackathon support** | The AED 10,000 prototype-implementation allocation covers HSM/threshold-custody setup in Phase 2 — the single largest infrastructure item in the 90 days |
 | **Integration status** | **No verified access to the challenge owner's systems, taxonomies or data is in place.** Every entity named is a notional counterparty requiring a formal agreement. |
 
 ## Kill criteria
