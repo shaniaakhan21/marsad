@@ -38,6 +38,15 @@ editing this rule, which is a security review.
 `test_the_timestamp_exemption_did_not_disarm_the_leak_guard` holds the line: it
 proves the guard still fires on narrative text, and still fires on a date-shaped
 word that is *not* the timestamp this payload carries.
+
+Resending is not rebuilding
+---------------------------
+`build_submission` mints a fresh `submission_id` every time, which is right for a new
+submission and wrong for a retry: a rebuilt payload is a second submission, and the
+core would count one incident twice. So a queued payload is resent from the
+connector's record of it (`outbound.py`), and `restore` is how it comes back — through
+this file, so that every `IncidentSubmission` that leaves the connector has still come
+out of A3, re-validated, digest-checked and leak-guarded.
 """
 
 from __future__ import annotations
@@ -58,6 +67,8 @@ from marsad_contracts.boundary import (
     SeverityBand,
     SizeBand,
 )
+from marsad_contracts.digest import payload_digest
+from pydantic import ValidationError
 
 from marsad_connector.crypto.tokeniser import Tokeniser
 
@@ -171,6 +182,39 @@ class RedactionAgent:
             submission.submission_id, len(submission.tokens),
             len(submission.technique_set), self._tokeniser.scheme,
         )
+        return submission
+
+    @staticmethod
+    def restore(payload: dict[str, Any], *, recorded_digest: str,
+                incident: IncidentLike | None) -> IncidentSubmission:
+        """
+        Bring back a payload this agent built earlier, so it can be resent unchanged.
+
+        Reads nothing from the incident except to run the leak guard over it; the
+        payload comes from the connector's record. Fails closed on each of:
+
+        * the record no longer satisfies the contract (unknown fields are forbidden);
+        * the record does not match the digest taken when it was built — it changed at
+          rest, and a changed record is not the thing the institution approved;
+        * the leak guard trips against whatever free text the incident still holds.
+
+        `incident` is None when the incident is gone; the digest check still applies.
+        """
+        try:
+            submission = IncidentSubmission.model_validate(payload)
+        except ValidationError as exc:
+            raise RedactionError(
+                f"recorded payload no longer satisfies the boundary contract: {exc}"
+            ) from exc
+
+        if payload_digest(submission) != recorded_digest:
+            raise RedactionError(
+                "recorded payload does not match the digest taken when it was built. "
+                "Refusing to send a record that changed after it was approved."
+            )
+
+        if incident is not None:
+            RedactionAgent._assert_no_leakage(submission, incident)
         return submission
 
     # -- internals ----------------------------------------------------------

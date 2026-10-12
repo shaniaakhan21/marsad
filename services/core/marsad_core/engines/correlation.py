@@ -52,6 +52,13 @@ class CorrelationHit:
     campaign_id: str | None = None
     detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
+    #: (institution_ref, submission_id) for every submission in the match. Carried
+    #: explicitly because `institution_refs` and `submission_ids` are each sorted on
+    #: their own and have different lengths whenever one institution contributes two
+    #: submissions — zipping them pairs a submission with the wrong firm. Only the
+    #: engine knows which firm sent which submission, so it states it here.
+    members: tuple[tuple[str, str], ...] = ()
+
 
 class CorrelationEngine:
     """
@@ -122,6 +129,10 @@ class CorrelationEngine:
                 submission_ids=tuple(sorted(peers | {sub.submission_id})),
                 indicator_type=IndicatorType(kt.type),
                 token=kt.token,
+                members=tuple(sorted(
+                    {(self._submissions[s].institution_ref, s) for s in peers}
+                    | {(sub.institution_ref, sub.submission_id)}
+                )),
             ))
             log.info(
                 "correlation.exact token=%s… institutions=%d",
@@ -154,6 +165,8 @@ class CorrelationEngine:
                 shared_techniques=res.shared,
                 similarity=round(res.score, 4),
                 reduced_fidelity=res.reduced_fidelity,
+                members=tuple(sorted({(sub.institution_ref, sub.submission_id),
+                                      (other.institution_ref, sid)})),
             ))
             log.info(
                 "correlation.similarity score=%.2f method=%s reduced_fidelity=%s",

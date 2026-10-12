@@ -91,6 +91,33 @@ def create_all(engine: sa.Engine) -> None:
         with engine.begin() as connection:
             connection.execute(sa.schema.CreateSchema(CORE_SCHEMA, if_not_exists=True))
     CoreBase.metadata.create_all(engine)
+    refuse_stale_schema(engine, CoreBase.metadata)
+
+
+def refuse_stale_schema(engine: sa.Engine, metadata: sa.MetaData) -> None:
+    """
+    Fail at boot if the database is older than the code.
+
+    `create_all` creates missing tables and never alters an existing one. A database
+    auto-created before a column was added therefore boots cleanly and fails later, at
+    the first query naming that column, as "no such column" — far from the cause and
+    inside a request. Checked here instead, where the fix can be named.
+    """
+    inspector = sa.inspect(engine)
+    missing = [
+        f"{table.fullname}.{column.name}"
+        for table in metadata.sorted_tables
+        for column in table.columns
+        if column.name not in {c["name"] for c in inspector.get_columns(
+            table.name, schema=table.schema)}
+    ]
+    if missing:
+        raise RuntimeError(
+            f"the database at {engine.url.render_as_string(hide_password=True)} predates "
+            f"this code — missing {', '.join(missing)}. Auto-create never alters an "
+            f"existing table. Run `make migrate` for a migrated database; a local SQLite "
+            f"file made by auto-create is disposable — delete it and it is recreated."
+        )
 
 
 __all__ = [
@@ -98,5 +125,6 @@ __all__ = [
     "build_engine",
     "build_sessionmaker",
     "create_all",
+    "refuse_stale_schema",
     "session_scope",
 ]

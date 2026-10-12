@@ -103,6 +103,9 @@ async def lifespan(_: FastAPI):
         STATE["db_engine"] = db_engine
         STATE["store"] = SqlStore(build_sessionmaker(db_engine))
         rehydrate(STATE["engine"], STATE["store"])
+        # Rehydration re-finds old matches and discards them, correctly — they were
+        # stored when first found. The list the dashboard reads comes from the store.
+        STATE["hits"] = STATE["store"].all_correlations()
 
     log.info(
         "core.ready similarity=%s k=%d store=%s",
@@ -139,12 +142,15 @@ async def submit(sub: IncidentSubmission):
     # submission_id, and writing first would let a retry be counted twice by one side
     # and once by the other.
     store = STATE["store"]
-    store.save_submission(sub)
+    digest = store.save_submission(sub)
     store.save_correlations(hits)
 
     return {
         "accepted": True,
         "submission_id": sub.submission_id,
+        # What the core now holds under this id, so the sender can check it against
+        # its own record of what it sent. See marsad_contracts/digest.py.
+        "payload_digest": digest,
         "correlations": [
             {
                 "kind": h.kind,

@@ -2,8 +2,9 @@
 MARSAD connector — runs inside an institution's perimeter.
 
 This process is the only one that ever holds narrative, plaintext indicators or
-PII. It reaches the core through exactly one function, `submit_to_core`, which
-accepts only an already-redacted IncidentSubmission.
+PII. It reaches the core through exactly one function, `_deliver`, which sends only
+an IncidentSubmission that A3 built, that was recorded before it left, and that A3
+has re-checked against that record.
 """
 from __future__ import annotations
 
@@ -29,6 +30,12 @@ from marsad_connector.crypto.tokeniser import build_tokeniser
 from marsad_connector.db.session import build_engine, build_sessionmaker, create_all
 from marsad_connector.llm.budget import CallBudget
 from marsad_connector.llm.provider import LLMProvider, build_llm
+from marsad_connector.outbound import (
+    InMemoryOutboundLog,
+    OutboundRecord,
+    Outcome,
+    SqlOutboundLog,
+)
 from marsad_connector.store import InMemoryStore, SqlStore, provenance_from_draft
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -37,27 +44,33 @@ log = logging.getLogger("marsad.connector")
 app = FastAPI(title="MARSAD Connector", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-def _build_store():
+def _build_stores():
     """
-    The institution's store, chosen at boot.
+    The institution's stores, chosen at boot: its incidents, and its record of what left.
 
-    SQLite locally, Postgres in deployment, and an in-memory backend for tests. It is
-    built here rather than lazily so a misconfigured database stops the connector from
+    SQLite locally, Postgres in deployment, and an in-memory backend for tests. Built
+    here rather than lazily so a misconfigured database stops the connector from
     starting — the same reason the LLM provider is constructed at import.
     """
     cfg = settings()
     if cfg.store == "memory":
-        return InMemoryStore()
+        return InMemoryStore(), InMemoryOutboundLog()
     engine = build_engine(cfg.database_url)
     if cfg.auto_create_schema:
         create_all(engine)
-    return SqlStore(build_sessionmaker(engine), retention_days=cfg.retention_days,
-                    model=lambda **kw: IncidentIn(**kw))
+    factory = build_sessionmaker(engine)
+    return (
+        SqlStore(factory, retention_days=cfg.retention_days,
+                 model=lambda **kw: IncidentIn(**kw)),
+        SqlOutboundLog(factory),
+    )
 
 
-#: The institution's incidents. Plaintext, and it never leaves this process except
-#: through A3, which builds an allow-listed payload rather than reading these rows.
-LOCAL = _build_store()
+#: LOCAL — the institution's incidents. Plaintext, and it never leaves this process
+#: except through A3, which builds an allow-listed payload rather than reading these rows.
+#: OUTBOUND — every payload sent to the core and every attempt, recorded before it
+#: leaves. Also the queue a core outage leaves behind. See outbound.py.
+LOCAL, OUTBOUND = _build_stores()
 
 
 def _build_llm_at_startup() -> LLMProvider:
@@ -167,6 +180,7 @@ async def health():
         "ok": True,
         "institution": cfg.institution_name,
         "local_incidents": LOCAL.count(),
+        "queued_submissions": len(OUTBOUND.queued()),
         "llm_provider": LLM.name,
         "sovereign_mode": cfg.sovereign_mode,
     }
@@ -345,22 +359,172 @@ async def preview(iid: str) -> IncidentSubmission:
     Deliberately a first-class endpoint: an institution's security team can
     inspect the emitted payload for any incident before enabling submission.
     """
-    return _build(iid)
+    return _build(iid)[0]
 
 
 @app.post("/v1/incidents/{iid}/submit")
 async def submit(iid: str):
-    sub = _build(iid)
+    """
+    Send this incident's boundary payload to the core — once.
+
+    What happens depends on the last attempt for this incident:
+
+    * none, REJECTED or REFUSED — build a fresh payload through A3 and record it. The
+      core holds nothing from those, so a new submission cannot be double-counted.
+    * QUEUED — resend the recorded payload unchanged. It may have arrived before the
+      failure; the same `submission_id` makes the resend a no-op at the core if so.
+    * ACCEPTED — send nothing, and answer from the record. Submitting twice is the same
+      as submitting once.
+
+    If the core is unreachable the payload stays queued here and the answer is 503 —
+    the connector never blocks the institution's own work on the core.
+    """
+    if iid not in LOCAL:
+        raise HTTPException(404, "unknown incident")
+
+    history = OUTBOUND.for_incident(iid)
+    last = history[-1] if history else None
+    if last is not None and last.status == Outcome.ACCEPTED.value:
+        return _submitted(last, already_submitted=True)
+
+    if last is not None and last.status == Outcome.QUEUED.value:
+        record = last
+    else:
+        sub, scheme = _build(iid)
+        incident = LOCAL.get(iid)
+        record = OUTBOUND.record(
+            sub, incident_id=iid, tokeniser_scheme=scheme,
+            incident_source=incident.source, confirmed_by=incident.confirmed_by,
+        )
+
+    record = await _deliver(record)
+    if record.status == Outcome.QUEUED.value:
+        raise HTTPException(
+            503, f"core unreachable; submission {record.submission_id} queued locally",
+        )
+    if record.status in (Outcome.REJECTED.value, Outcome.REFUSED.value):
+        attempt = record.attempts[-1]
+        code = 422 if record.status == Outcome.REFUSED.value else 502
+        raise HTTPException(code, f"submission {record.submission_id} {record.status.lower()}: "
+                                  f"{attempt.error}")
+    return _submitted(record, already_submitted=False)
+
+
+@app.get("/v1/outbound")
+async def outbound(incident_id: str | None = None):
+    """
+    The institution's record of everything it has sent to the core, oldest first.
+
+    Local only, like every route on this process. Each entry is the payload exactly as
+    it crossed, its digest, the tokeniser that produced it, who confirmed the incident,
+    and every attempt to deliver it with what the core reported holding.
+    """
+    records = OUTBOUND.for_incident(incident_id) if incident_id else OUTBOUND.all()
+    return [r.as_dict() for r in records]
+
+
+@app.get("/v1/outbound/{submission_id}")
+async def outbound_record(submission_id: str):
+    record = OUTBOUND.get(submission_id)
+    if record is None:
+        raise HTTPException(404, "unknown submission")
+    return record.as_dict()
+
+
+@app.post("/v1/outbound/retry")
+async def retry_queued():
+    """
+    Resend every queued payload, unchanged, and report what happened to each.
+
+    Safe to call at any time and as often as wanted: an ACCEPTED payload is never
+    resent, and a resent one carries its original `submission_id`, which the core
+    ignores if it already holds it.
+    """
+    results = []
+    for record in OUTBOUND.queued():
+        done = await _deliver(record)
+        results.append({"submission_id": done.submission_id, "status": done.status})
+    return {
+        "attempted": len(results),
+        "results": results,
+        "still_queued": len(OUTBOUND.queued()),
+    }
+
+
+def _submitted(record: OutboundRecord, *, already_submitted: bool) -> dict:
+    accepted = record.last_accepted()
+    return {
+        "submitted": True,
+        "already_submitted": already_submitted,
+        "submission_id": record.submission_id,
+        "payload_digest": record.payload_digest,
+        "digest_confirmed": record.digest_confirmed,
+        "core_response": accepted.core_response if accepted else None,
+        "payload_sent": record.payload,
+    }
+
+
+def _core_client(cfg) -> httpx.AsyncClient:
+    """The one HTTP client that reaches the core. Tests bind the core in-process here."""
+    return httpx.AsyncClient(timeout=10, **_core_tls(cfg))
+
+
+async def _deliver(record: OutboundRecord) -> OutboundRecord:
+    """
+    The sole egress. Sends one recorded payload and records what happened.
+
+    The payload goes back through A3 first (`RedactionAgent.restore`), so what is sent
+    is re-validated against the contract, matched to the digest recorded when A3 built
+    it, and leak-guarded against the incident's current free text. A record that fails
+    any of those is REFUSED here and never sent.
+    """
+    try:
+        sub = RedactionAgent.restore(
+            record.payload, recorded_digest=record.payload_digest,
+            incident=LOCAL.get(record.incident_id),
+        )
+    except RedactionError as exc:
+        log.error("connector.refused submission=%s reason=%s", record.submission_id, exc)
+        return OUTBOUND.attempt(record.submission_id, outcome=Outcome.REFUSED, error=str(exc))
+
     cfg = settings()
-    async with httpx.AsyncClient(timeout=10, **_core_tls(cfg)) as client:
-        try:
-            r = await client.post(f"{cfg.core_url}/v1/submissions", json=sub.model_dump(mode="json"))
-            r.raise_for_status()
-        except httpx.HTTPError as exc:
-            # Degraded mode: queue locally, never block the institution's own work.
-            log.warning("connector.core_unreachable queued incident=%s err=%s", iid, exc)
-            raise HTTPException(503, "core unreachable; submission queued locally") from exc
-    return {"submitted": True, "core_response": r.json(), "payload_sent": sub.model_dump(mode="json")}
+    try:
+        async with _core_client(cfg) as client:
+            r = await client.post(f"{cfg.core_url}/v1/submissions",
+                                  json=sub.model_dump(mode="json"))
+    except httpx.HTTPError as exc:
+        # Degraded mode: queued here, never blocking the institution's own work.
+        log.warning("connector.core_unreachable queued submission=%s err=%s",
+                    record.submission_id, exc)
+        return OUTBOUND.attempt(record.submission_id, outcome=Outcome.QUEUED,
+                                error=f"{type(exc).__name__}: {exc}")
+
+    if r.status_code >= 500:
+        # The core may have stored it before failing. Queue it; the resend is a no-op
+        # at the core if so.
+        return OUTBOUND.attempt(record.submission_id, outcome=Outcome.QUEUED,
+                                http_status=r.status_code, error=r.text)
+    if r.status_code >= 400:
+        log.error("connector.rejected submission=%s status=%d", record.submission_id,
+                  r.status_code)
+        return OUTBOUND.attempt(record.submission_id, outcome=Outcome.REJECTED,
+                                http_status=r.status_code, error=r.text)
+
+    try:
+        body = r.json()
+    except ValueError:
+        return OUTBOUND.attempt(record.submission_id, outcome=Outcome.QUEUED,
+                                http_status=r.status_code, error="unreadable core response")
+
+    core_digest = body.get("payload_digest")
+    if core_digest != record.payload_digest:
+        log.error(
+            "connector.digest_mismatch submission=%s sent=%s core_holds=%s",
+            record.submission_id, record.payload_digest[:12], (core_digest or "none")[:12],
+        )
+    return OUTBOUND.attempt(record.submission_id, outcome=Outcome.ACCEPTED,
+                            http_status=r.status_code, core_digest=core_digest,
+                            core_response=body)
 
 
 def _core_tls(cfg) -> dict:
@@ -398,17 +562,19 @@ def _core_tls(cfg) -> dict:
     return {"verify": context}
 
 
-def _build(iid: str) -> IncidentSubmission:
+def _build(iid: str) -> tuple[IncidentSubmission, str]:
+    """A fresh payload from A3, and the scheme of the tokeniser that produced it."""
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
     cfg = settings()
-    agent = RedactionAgent(build_tokeniser(cfg.tokeniser))
+    tokeniser = build_tokeniser(cfg.tokeniser)
+    agent = RedactionAgent(tokeniser)
     try:
         return agent.build_submission(
             LOCAL.get(iid),
             institution_ref=cfg.institution_ref,
             sector=Sector(cfg.sector),
             size_band=SizeBand(cfg.size_band),
-        )
+        ), tokeniser.scheme
     except RedactionError as exc:
         raise HTTPException(422, str(exc)) from exc

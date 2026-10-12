@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from marsad_core.db.base import CORE_SCHEMA, CoreBase
+from marsad_core.db.base import CORE_SCHEMA, CoreBase, UtcDateTime
 
 
 def _utcnow() -> datetime:
@@ -45,17 +45,24 @@ class Submission(CoreBase):
     sector: Mapped[str] = mapped_column(sa.String(16))
     size_band: Mapped[str] = mapped_column(sa.String(16))
     severity_band: Mapped[str] = mapped_column(sa.String(16))
-    ts_bucket: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True))
+    ts_bucket: Mapped[datetime] = mapped_column(UtcDateTime)
 
     # -- proof a firm resolved its duties, without saying which or what -----
     obligation_receipt_hash: Mapped[str | None] = mapped_column(sa.String(64), default=None)
     obligation_authority: Mapped[str | None] = mapped_column(sa.String(32), default=None)
     obligation_filed_at: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True), default=None
+        UtcDateTime, default=None
     )
 
     disclosure_rung: Mapped[int] = mapped_column(sa.Integer, default=0)
-    received_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=_utcnow)
+    received_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    #: SHA-256 of the payload as received, in the canonical form both sides compute
+    #: (`marsad_contracts.digest`). Derived from the columns above, so it holds nothing
+    #: they do not; returned to the connector so the institution's record of what it
+    #: sent and this record of what arrived can be compared by anyone holding both.
+    #: Nullable only for rows written before it existed.
+    payload_digest: Mapped[str | None] = mapped_column(sa.String(64), default=None)
 
     tokens: Mapped[list[SubmissionToken]] = relationship(
         back_populates="submission", cascade="all, delete-orphan", lazy="selectin",
@@ -102,7 +109,7 @@ class Correlation(CoreBase):
     #: Propagates from the similarity engine so no alert is trusted more than the
     #: method that produced it. See engines/similarity.py.
     reduced_fidelity: Mapped[bool] = mapped_column(sa.Boolean, default=False)
-    detected_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=_utcnow)
+    detected_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     members: Mapped[list[CorrelationMember]] = relationship(
         back_populates="correlation", cascade="all, delete-orphan", lazy="selectin",

@@ -20,12 +20,45 @@ this file exists at all rather than a single shared `Base`.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import sqlalchemy as sa
 from sqlalchemy.orm import DeclarativeBase
 
 #: Every core table is qualified with this. Never parameterised away — a schema that
 #: can be configured to match the edge's is not a separation.
 CORE_SCHEMA = "core"
+
+
+class UtcDateTime(sa.TypeDecorator):
+    """
+    A timestamp that comes back as the instant that went in, on every backend.
+
+    Postgres stores an instant and returns it in UTC. SQLite has no timestamp type:
+    it kept the wall-clock digits and dropped the offset, so `08:00+04:00` came back
+    as a zoneless `08:00` — four hours from the truth once read as UTC, and a stored
+    submission that could no longer be reconstructed as received. Normalising to UTC
+    on the way in and attaching UTC on the way out makes both backends agree, which is
+    what lets `tests/test_restart_and_audit.py` hold the fast path to the same
+    standard as production.
+    """
+
+    impl = sa.DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    def process_result_value(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class CoreBase(DeclarativeBase):
@@ -49,4 +82,4 @@ class CoreBase(DeclarativeBase):
     )
 
 
-__all__ = ["CORE_SCHEMA", "CoreBase"]
+__all__ = ["CORE_SCHEMA", "CoreBase", "UtcDateTime"]

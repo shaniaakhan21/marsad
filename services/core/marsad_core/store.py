@@ -26,7 +26,8 @@ from enum import Enum
 from typing import Protocol
 
 import sqlalchemy as sa
-from marsad_contracts.boundary import IncidentSubmission
+from marsad_contracts.boundary import CorrelationKind, IncidentSubmission, IndicatorType
+from marsad_contracts.digest import payload_digest
 from sqlalchemy.orm import Session, sessionmaker
 
 from marsad_core.db.models import (
@@ -62,9 +63,10 @@ class SubmissionStore(Protocol):
 
     name: str
 
-    def save_submission(self, submission: IncidentSubmission) -> None: ...
+    def save_submission(self, submission: IncidentSubmission) -> str: ...
     def save_correlations(self, hits: list[CorrelationHit]) -> None: ...
     def all_submissions(self) -> list[IncidentSubmission]: ...
+    def all_correlations(self) -> list[CorrelationHit]: ...
     def submission_count(self) -> int: ...
     def correlation_count(self) -> int: ...
 
@@ -76,16 +78,21 @@ class InMemoryStore:
 
     def __init__(self) -> None:
         self._submissions: dict[str, IncidentSubmission] = {}
+        self._digests: dict[str, str] = {}
         self._hits: list[CorrelationHit] = []
 
-    def save_submission(self, submission: IncidentSubmission) -> None:
+    def save_submission(self, submission: IncidentSubmission) -> str:
         self._submissions.setdefault(submission.submission_id, submission)
+        return self._digests.setdefault(submission.submission_id, payload_digest(submission))
 
     def save_correlations(self, hits: list[CorrelationHit]) -> None:
         self._hits.extend(hits)
 
     def all_submissions(self) -> list[IncidentSubmission]:
         return list(self._submissions.values())
+
+    def all_correlations(self) -> list[CorrelationHit]:
+        return list(self._hits)
 
     def submission_count(self) -> int:
         return len(self._submissions)
@@ -109,12 +116,25 @@ class SqlStore:
     def __init__(self, factory: sessionmaker[Session]) -> None:
         self._factory = factory
 
-    def save_submission(self, submission: IncidentSubmission) -> None:
+    def save_submission(self, submission: IncidentSubmission) -> str:
+        """
+        Store the payload and return the digest of what is now held under its id.
+
+        On a duplicate that is the digest of the FIRST payload, not of the one that just
+        arrived. A connector retrying the same payload gets back the digest it expects;
+        one that reused an id for different content gets back a digest that does not
+        match its own, which is the only honest answer — the core kept the original.
+        """
+        digest = payload_digest(submission)
         with session_scope(self._factory) as session:
             exists = session.get(Submission, submission.submission_id)
             if exists is not None:
-                log.info("store.duplicate submission=%s ignored", submission.submission_id)
-                return
+                if exists.payload_digest and exists.payload_digest != digest:
+                    log.warning("store.duplicate submission=%s differs from the stored "
+                                "payload; the stored one is kept", submission.submission_id)
+                else:
+                    log.info("store.duplicate submission=%s ignored", submission.submission_id)
+                return exists.payload_digest or digest
 
             obligation = submission.obligation_ref
             session.add(Submission(
@@ -130,11 +150,13 @@ class SqlStore:
                 obligation_authority=obligation.authority if obligation else None,
                 obligation_filed_at=obligation.filed_at if obligation else None,
                 disclosure_rung=int(submission.disclosure_rung),
+                payload_digest=digest,
                 tokens=[
                     SubmissionToken(indicator_type=_enum_value(kt.type), token=kt.token)
                     for kt in submission.tokens
                 ],
             ))
+        return digest
 
     def save_correlations(self, hits: list[CorrelationHit]) -> None:
         if not hits:
@@ -154,8 +176,7 @@ class SqlStore:
                     detected_at=hit.detected_at,
                     members=[
                         CorrelationMember(institution_ref=ref, submission_id=sid)
-                        for ref, sid in zip(hit.institution_refs, hit.submission_ids,
-                                            strict=False)
+                        for ref, sid in hit.members
                     ],
                 ))
 
@@ -170,6 +191,52 @@ class SqlStore:
         with session_scope(self._factory) as session:
             rows = session.scalars(sa.select(Submission)).all()
             return [self._to_contract(row) for row in rows]
+
+    def reconstruct(self, submission_id: str) -> tuple[IncidentSubmission, str | None] | None:
+        """
+        An auditor's view of one submission: the payload rebuilt from its rows, and the
+        digest recorded when it arrived.
+
+        If the rows still say what arrived, `payload_digest(rebuilt)` equals the
+        recorded digest — and equals the digest in the institution's own record of
+        what it sent. Any of the three disagreeing is a finding.
+        """
+        with session_scope(self._factory) as session:
+            row = session.get(Submission, submission_id)
+            if row is None:
+                return None
+            return self._to_contract(row), row.payload_digest
+
+    def all_correlations(self) -> list[CorrelationHit]:
+        """
+        Every correlation found, oldest first, rebuilt from the store of record.
+
+        The engine rebuilds its token index from submissions at startup, but that
+        rebuild deliberately discards the hits it re-finds — they were already found and
+        stored once. Without this, a restarted core would still match new submissions
+        correctly and yet report that it had never found anything.
+        """
+        with session_scope(self._factory) as session:
+            rows = session.scalars(
+                sa.select(Correlation).order_by(Correlation.detected_at)
+            ).all()
+            return [
+                CorrelationHit(
+                    kind=CorrelationKind(row.kind),
+                    institution_refs=tuple(sorted({m.institution_ref for m in row.members})),
+                    submission_ids=tuple(sorted(m.submission_id for m in row.members)),
+                    indicator_type=IndicatorType(row.indicator_type) if row.indicator_type else None,
+                    token=row.token,
+                    shared_techniques=tuple(row.shared_techniques or ()),
+                    similarity=row.similarity,
+                    reduced_fidelity=row.reduced_fidelity,
+                    campaign_id=row.campaign_id,
+                    detected_at=row.detected_at,
+                    members=tuple(sorted((m.institution_ref, m.submission_id)
+                                         for m in row.members)),
+                )
+                for row in rows
+            ]
 
     @staticmethod
     def _to_contract(row: Submission) -> IncidentSubmission:

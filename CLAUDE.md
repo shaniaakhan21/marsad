@@ -30,8 +30,18 @@ add one to make a feature easier.
 
 [a3_redact.py](services/connector/marsad_connector/agents/a3_redact.py) constructs
 `IncidentSubmission`; nothing else may. It holds no network capability by design — the sole egress
-is `submit()` in [main.py](services/connector/marsad_connector/main.py), which accepts nothing but
+is `_deliver()` in [main.py](services/connector/marsad_connector/main.py), which accepts nothing but
 an already-validated submission.
+
+Every payload is recorded in the institution's own database *before* it leaves
+([outbound.py](services/connector/marsad_connector/outbound.py)), and that record is also the
+queue a core outage leaves behind. **A retry resends the recorded payload; it never rebuilds.**
+`build_submission` mints a fresh `submission_id` each time, so a rebuilt retry is a second
+submission — and after a timeout nobody knows whether the first one arrived. Recorded payloads
+come back through `RedactionAgent.restore`, which re-validates, checks the digest taken at build
+time, and re-runs the leak guard. Both sides compute that digest with one function
+([digest.py](packages/contracts/marsad_contracts/digest.py)); the core returns its copy, so the
+institution's record of what it sent and the core's record of what arrived can be compared.
 
 A3 **builds from an allow-list; it does not strip a rich object down to a safe one.** That
 distinction is the whole guarantee. It reads only the fields it names — grep `build_submission`
@@ -136,7 +146,7 @@ real portal is marked `@pytest.mark.network` and stays out of the default run.
 
 ## The rule
 
-**Every change must leave `python -m pytest` fully green.** Currently 623 passed, 29 deselected
+**Every change must leave `python -m pytest` fully green.** Currently 640 passed, 29 deselected
 (the `network` marker — `make test-network`; and the `docker` marker — `make test-boundary`). No
 skips, no xfails, no "unrelated failure". If a test blocks you, it is a claim someone made
 deliberately — understand the claim before you touch it.
