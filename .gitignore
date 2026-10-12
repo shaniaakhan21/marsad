@@ -26,11 +26,6 @@ test-results/
 playwright-report/
 blob-report/
 
-# Claude Code / AI tooling
-.claude/
-.claude-*
-CLAUDE.local.md
-
 # Editor / IDE
 .vscode/
 .idea/

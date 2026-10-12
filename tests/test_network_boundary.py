@@ -4,7 +4,7 @@ The network boundary test — isolation proven by the network, not by the code.
 Every other privacy test in this repository checks that our code declines to send
 something. That is necessary and it is not sufficient: code can be refactored, a
 check can be removed, a new endpoint can be added by someone who has not read
-CLAUDE.md. These tests check something a refactor cannot reach — whether a packet
+the design. These tests check something a refactor cannot reach — whether a packet
 carrying plaintext can physically get from an institution to the core at all.
 
 The topology under test (docker-compose.yml)

@@ -263,7 +263,6 @@ The sovereignty guard refuses any endpoint reachable on the public internet, and
 hosted-vendor API key, **at construction** — a connector that only fails when an
 analyst files their first incident has already failed.
 
-**Further reading:** [CLAUDE.md](CLAUDE.md) (what a contributor must not get wrong) ·
-[docs/model-path-results.md](docs/model-path-results.md) (the measurements) ·
+**Further reading:** [docs/model-path-results.md](docs/model-path-results.md) (the measurements) ·
 [docs/injection-results.md](docs/injection-results.md) ·
 [docs/deployment.md](docs/deployment.md)

@@ -59,7 +59,7 @@ jobs:
           (cd services/connector && MARSAD_DATABASE_URL=sqlite:////tmp/ci_edge.db \
              alembic upgrade head)
 
-      # The repo does not lint clean; the rule is a ratchet, not a gate. See CLAUDE.md.
+      # The repo does not lint clean; the rule is a ratchet, not a gate.
       - name: Lint ratchet (must not exceed the recorded baseline)
         run: |
           BASELINE=30

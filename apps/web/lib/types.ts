@@ -296,7 +296,7 @@ export interface ExtractionDraft {
   /**
    * When true, confirm() refuses unless the analyst explicitly passes an indicators
    * edit. A model-proposed indicator becomes a token in a shared matching space that
-   * nobody downstream can review, so it needs positive sign-off. See CLAUDE.md.
+   * nobody downstream can review, so it needs positive sign-off.
    */
   requires_indicator_confirmation: boolean;
 }

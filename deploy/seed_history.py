@@ -119,7 +119,7 @@ def seed(base_url_for, analyst: str, dry_run: bool) -> int:
             draft = extracted.json()["draft"]
 
             # Model-proposed indicators require explicit confirmation before they can be
-            # tokenised — see CLAUDE.md. The seeder is the "analyst" here and accepts
+            # tokenised. The seeder is the "analyst" here and accepts
             # what extraction located in the text.
             edits = {}
             if draft.get("requires_indicator_confirmation"):
