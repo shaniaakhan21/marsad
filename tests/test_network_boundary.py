@@ -11,7 +11,8 @@ The topology under test (docker-compose.yml)
 --------------------------------------------
 Each connector sits alone on its own `internal` edge network. Core sits alone on
 core_net. One container, boundary-gateway, is attached to both sides and forwards
-exactly one endpoint.
+exactly two routes: POST /v1/submissions, the only way anything leaves a firm, and
+GET /v1/notices, which brings a firm its own notices and accepts nothing.
 
 Two controls, of deliberately different strength, and these tests keep them apart:
 
@@ -20,7 +21,7 @@ Two controls, of deliberately different strength, and these tests keep them apar
     failures and refused connections, not HTTP status codes. Asserted by
     `test_*_at_the_network_layer`.
   * **The gateway, in nginx config** — of the traffic that can reach the gateway,
-    only `POST /v1/submissions` is forwarded. Failures here are 403s. Asserted by
+    only those two routes are forwarded. Failures here are 403s. Asserted by
     `test_the_gateway_*`.
 
 Claiming the second is network-layer enforcement would be overstating it, so it is
@@ -356,7 +357,7 @@ def test_the_one_permitted_route_actually_works():
 
 @pytest.mark.parametrize("path", ["/health", "/v1/correlations", "/v1/concentration",
                                   "/v1/data/sources", "/openapi.json"])
-def test_the_gateway_refuses_every_core_endpoint_except_submissions(path):
+def test_the_gateway_refuses_every_core_endpoint_except_its_two_routes(path):
     """
     Enforced by nginx config, not by the network — named accordingly. A connector
     reaching the gateway is expected; a connector reading the core's aggregate view
@@ -365,13 +366,26 @@ def test_the_gateway_refuses_every_core_endpoint_except_submissions(path):
     outcome = gateway_request("connector-almaha", "GET", path)
     assert outcome["status"] == 403, (
         f"the gateway forwarded {path} to core: {outcome}. Only POST /v1/submissions "
-        f"may cross from an edge network."
+        f"and GET /v1/notices may cross from an edge network."
     )
 
 
 def test_the_gateway_refuses_the_submission_endpoint_by_the_wrong_method():
     """A GET on the ingress would be a read of whatever core chose to return."""
     outcome = gateway_request("connector-almaha", "GET", "/v1/submissions")
+    assert outcome["status"] == 403, outcome
+
+
+def test_the_gateway_forwards_a_firms_request_for_its_own_notices():
+    """The positive control for the warning route: it exists and it answers."""
+    outcome = gateway_request("connector-almaha", "GET", "/v1/notices?institution_ref=psd_almaha01")
+    assert outcome["status"] == 200, outcome
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
+def test_the_notices_route_accepts_nothing_through_the_gateway(method):
+    """If anything but a read got through here, it would be a second way out of a firm."""
+    outcome = gateway_request("connector-almaha", method, "/v1/notices")
     assert outcome["status"] == 403, outcome
 
 

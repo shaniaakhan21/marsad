@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from marsad_connector.db.models import (
     ExtractionProvenance,
     LocalIncident,
+    ReceivedNotice,
     RetentionRun,
     expiry_for,
 )
@@ -42,6 +43,9 @@ class EdgeStore(Protocol):
     def count(self) -> int: ...
     def set_impact(self, incident_id: str, impact: dict[str, Any],
                    systems_affected: list[str]) -> None: ...
+    def save_notices(self, notices: list[dict[str, Any]]) -> int: ...
+    def notices(self, limit: int = 200) -> list[dict[str, Any]]: ...
+    def last_notice_at(self) -> datetime | None: ...
     def purge_expired(self, now: datetime | None = None) -> dict[str, Any]: ...
     def retention_runs(self, limit: int = 50) -> list[dict[str, Any]]: ...
 
@@ -54,6 +58,22 @@ class InMemoryStore:
     def __init__(self) -> None:
         self._incidents: dict[str, Any] = {}
         self._provenance: dict[str, list[dict[str, Any]]] = {}
+        self._notices: dict[str, dict[str, Any]] = {}
+
+    def save_notices(self, notices) -> int:
+        fresh = [n for n in notices if n["correlation_id"] not in self._notices]
+        for notice in fresh:
+            self._notices[notice["correlation_id"]] = notice
+        return len(fresh)
+
+    def notices(self, limit: int = 200) -> list[dict[str, Any]]:
+        ordered = sorted(self._notices.values(), key=lambda n: n["detected_at"], reverse=True)
+        return ordered[:limit]
+
+    def last_notice_at(self) -> datetime | None:
+        if not self._notices:
+            return None
+        return datetime.fromisoformat(max(n["detected_at"] for n in self._notices.values()))
 
     def save(self, incident_id, incident, provenance=None) -> None:
         self._incidents[incident_id] = incident
@@ -181,6 +201,41 @@ class SqlStore:
         with session_scope(self._factory) as session:
             return int(session.scalar(
                 sa.select(sa.func.count()).select_from(LocalIncident)) or 0)
+
+    def save_notices(self, notices) -> int:
+        """Idempotent on the notice id, so collecting twice records one notice."""
+        fresh = 0
+        with session_scope(self._factory) as session:
+            for notice in notices:
+                if session.get(ReceivedNotice, notice["correlation_id"]) is not None:
+                    continue
+                session.add(ReceivedNotice(
+                    notice_id=notice["correlation_id"], kind=notice["kind"],
+                    peer_count=notice["peer_count"], indicator_type=notice["indicator_type"],
+                    shared_techniques=list(notice["shared_techniques"]),
+                    similarity=notice["similarity"], campaign_id=notice["campaign_id"],
+                    detected_at=datetime.fromisoformat(notice["detected_at"]),
+                ))
+                fresh += 1
+        return fresh
+
+    def notices(self, limit: int = 200) -> list[dict[str, Any]]:
+        with session_scope(self._factory) as session:
+            rows = session.scalars(
+                sa.select(ReceivedNotice).order_by(ReceivedNotice.detected_at.desc()).limit(limit)
+            ).all()
+            return [
+                {"correlation_id": r.notice_id, "kind": r.kind, "peer_count": r.peer_count,
+                 "indicator_type": r.indicator_type,
+                 "shared_techniques": list(r.shared_techniques or []),
+                 "similarity": r.similarity, "campaign_id": r.campaign_id,
+                 "detected_at": r.detected_at.isoformat()}
+                for r in rows
+            ]
+
+    def last_notice_at(self) -> datetime | None:
+        with session_scope(self._factory) as session:
+            return session.scalar(sa.select(sa.func.max(ReceivedNotice.detected_at)))
 
     def set_impact(self, incident_id, impact, systems_affected) -> None:
         """Its own update, because `save` rebuilds the row and would drop its provenance."""

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -214,6 +215,41 @@ async def submit(
             for h in hits
         ],
     }
+
+
+#: Notices returned per request. A firm further behind than this catches up over polls.
+MAX_NOTICES_PER_POLL = 500
+
+
+@app.get("/v1/notices")
+async def notices(
+    institution_ref: str,
+    certified: Annotated[str | None, Depends(connector_identity)],
+    since: datetime | None = None,
+):
+    """
+    A firm collecting its own rung-0 notices: read-only, and the only way one reaches it.
+
+    The core may not call into an institution, so a firm that reported before its peers
+    has no other way to learn it was matched. `POST /v1/submissions` remains the only
+    route that accepts anything from a firm. This one takes a pseudonym and a timestamp.
+
+    Bound to the caller's certificate, because a notice is what one firm knows about
+    itself. How many peers matched and on which technique is not another firm's to read.
+    """
+    assert_bound_to(certified, institution_ref)
+    if since is not None and since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
+
+    engine: CorrelationEngine = STATE["engine"]
+    out = [
+        notice
+        for hit in sorted(STATE["hits"], key=lambda h: h.detected_at)
+        if institution_ref in hit.institution_refs and (since is None or hit.detected_at > since)
+        for ref, notice in engine.notices_for(hit)
+        if ref == institution_ref
+    ]
+    return {"notices": [n.model_dump(mode="json") for n in out[:MAX_NOTICES_PER_POLL]]}
 
 
 @app.get("/v1/correlations", dependencies=[Depends(console_role)])

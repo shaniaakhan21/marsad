@@ -368,3 +368,15 @@ export interface StandardReport {
   notifications: { authority: string; applicability: string; deadline: string | null }[];
   completeness: { complete: boolean; missing: string[] };
 }
+
+/** Mirrors CorrelationNotice in boundary.py. How many peers, never which. */
+export interface PeerNotice {
+  correlation_id: string;
+  kind: CorrelationKind;
+  peer_count: number;
+  indicator_type: IndicatorType | null;
+  shared_techniques: string[];
+  similarity: number | null;
+  detected_at: string;
+  campaign_id: string | null;
+}

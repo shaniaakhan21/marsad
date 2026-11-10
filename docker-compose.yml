@@ -6,7 +6,8 @@
 # ------------------------------------------------------------
 # Each connector sits alone on its own edge network. Core sits alone on core_net.
 # The only container attached to both sides is boundary-gateway, and it forwards
-# exactly one endpoint: POST /v1/submissions.
+# exactly two routes: POST /v1/submissions, the only way anything leaves a firm, and
+# GET /v1/notices, which brings a firm its own notices and accepts nothing.
 #
 # What that buys, and which layer enforces it:
 #
@@ -14,7 +15,7 @@
 #   core -> connector            no route at all      (Docker, network layer)
 #   connector -> other connector no route at all      (Docker, network layer)
 #   connector -> anything but    403 at the gateway   (nginx config, infra/)
-#     POST /v1/submissions
+#     those two routes
 #
 # Databases follow the same split. Core has its own Postgres on core_net; each
 # institution has its own Postgres on its own edge network. The core cannot open an
@@ -79,7 +80,7 @@ services:
         condition: service_healthy
 
   # The only container on both sides of the boundary. Holds no state, runs no
-  # application code, and forwards one endpoint.
+  # application code, and forwards two routes.
   boundary-gateway:
     build: { context: ., dockerfile: infra/Dockerfile.gateway }
     # Aliases are declared explicitly on every edge network rather than left to
@@ -170,6 +171,8 @@ services:
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-almaha:5432/marsad_edge"
       MARSAD_RETENTION_DAYS: "90"
+      # Short so a demo shows the first firm being warned. The default is 60.
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "5"
     ports: ["8101:8000"]
     networks: [edge_almaha]
     depends_on:
@@ -209,6 +212,8 @@ services:
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-gulfsec:5432/marsad_edge"
       MARSAD_RETENTION_DAYS: "90"
+      # Short so a demo shows the first firm being warned. The default is 60.
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "5"
     ports: ["8102:8000"]
     networks: [edge_gulfsec]
     depends_on:
@@ -248,6 +253,8 @@ services:
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-emcap:5432/marsad_edge"
       MARSAD_RETENTION_DAYS: "90"
+      # Short so a demo shows the first firm being warned. The default is 60.
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "5"
     ports: ["8103:8000"]
     networks: [edge_emcap]
     depends_on:

@@ -8,7 +8,7 @@
 #
 # The local topology is unchanged from docker-compose.yml and for the same reasons —
 # each connector alone on its own network, core alone on core_net, one gateway
-# bridging them for exactly one endpoint. Caddy sits in front of that for TLS and for
+# bridging them for exactly two routes (submit, and collect one's own notices). Caddy sits in front of that for TLS and for
 # the limits a public demo needs.
 networks:
   edge_almaha: {}

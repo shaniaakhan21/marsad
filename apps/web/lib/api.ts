@@ -1,6 +1,6 @@
 import type {
   CohortReport, ConcentrationReport, ConfirmResult, Correlation, DataRegistry,
-  ExtractionDraft, FreshnessReport, IncidentSubmission, MarketBasis,
+  ExtractionDraft, FreshnessReport, IncidentSubmission, MarketBasis, PeerNotice,
   ObligationResult, ReceiptProof, RegulatorOverview, Roadmap, StandardReport, SupervisorReport,
 } from "./types";
 
@@ -86,6 +86,11 @@ export const api = {
   submit: (base: string, id: string) =>
     json<{ submitted: boolean; core_response: { correlations: Correlation[] } }>(
       `${base}/v1/incidents/${id}/submit`, { method: "POST" }),
+
+  /** Ask the core now whether this firm has been matched, then read what it holds. */
+  collectNotices: (base: string) =>
+    json<{ collected: boolean; new_notices: number }>(`${base}/v1/notices/collect`, { method: "POST" }),
+  notices: (base: string) => json<PeerNotice[]>(`${base}/v1/notices`),
 
   /** Banded impact, for the firm's own report. Stored locally; it never crosses. */
   recordImpact: (base: string, id: string, body: unknown) =>

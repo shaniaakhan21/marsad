@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     #: document. 0 turns the schedule off; only tests should want that.
     retention_purge_interval_seconds: int = 3600
 
+    #: Seconds between checks for notices from the core. 0 turns the check off. A firm
+    #: that reported before its peers learns of a match no sooner than this.
+    notice_poll_interval_seconds: int = 60
+
     #: Browser origins allowed to call this connector, comma separated. Never `*`: this
     #: process serves plaintext incidents, and a wildcard would let any page an analyst
     #: visits read them.

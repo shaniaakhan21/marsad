@@ -76,7 +76,7 @@
 		}
 	}
 
-	# Even authenticated, a connector may only submit and evaluate. Everything else about the
+	# Even authenticated, a connector may only submit, collect its notices and evaluate. Everything else about the
 	# core — correlations, concentration, other institutions' data — is none of an
 	# institution's business.
 	@submit {
@@ -98,6 +98,17 @@
 		}
 	}
 
+	# A firm collecting its own notices. Bound to the certificate by the core.
+	@notices {
+		method GET
+		path /v1/notices
+	}
+	handle @notices {
+		reverse_proxy core:8000 {
+			header_up X-Client-Cert-Subject {http.request.tls.client.subject}
+		}
+	}
+
 	# The key custodians, for a connector on separate hardware. Blinded elements only.
 	@custodian {
 		method POST
@@ -111,6 +122,6 @@
 	}
 
 	handle {
-		respond `{"error":"mutual TLS grants submission and token evaluation only"}` 403
+		respond `{"error":"mutual TLS grants submission, notices and token evaluation only"}` 403
 	}
 }

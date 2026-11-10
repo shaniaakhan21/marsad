@@ -21,7 +21,6 @@ process loses nothing; losing the database loses everything.
 from __future__ import annotations
 
 import logging
-import uuid
 from enum import Enum
 from typing import Protocol
 
@@ -163,9 +162,8 @@ class SqlStore:
             return
         with session_scope(self._factory) as session:
             for hit in hits:
-                correlation_id = str(uuid.uuid4())
                 session.add(Correlation(
-                    correlation_id=correlation_id,
+                    correlation_id=hit.correlation_id,
                     kind=_enum_value(hit.kind),
                     campaign_id=hit.campaign_id,
                     indicator_type=_enum_value(hit.indicator_type),
@@ -222,6 +220,7 @@ class SqlStore:
             ).all()
             return [
                 CorrelationHit(
+                    correlation_id=row.correlation_id,
                     kind=CorrelationKind(row.kind),
                     institution_refs=tuple(sorted({m.institution_ref for m in row.members})),
                     submission_ids=tuple(sorted(m.submission_id for m in row.members)),

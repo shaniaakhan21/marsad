@@ -2,9 +2,10 @@
 MARSAD connector — runs inside an institution's perimeter.
 
 This process is the only one that ever holds narrative, plaintext indicators or
-PII. It reaches the core through exactly one function, `_deliver`, which sends only
-an IncidentSubmission that A3 built, that was recorded before it left, and that A3
-has re-checked against that record.
+PII. Exactly one function, `_deliver`, sends the core anything about an incident, and
+it sends only an IncidentSubmission that A3 built, that was recorded before it left, and
+that A3 has re-checked against that record. `collect_notices` is the one other call to
+the core: a read that carries this firm's pseudonym and a timestamp, and nothing else.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import logging
 import ssl
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,8 +24,13 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from marsad_contracts.boundary import IncidentSubmission, Sector, SizeBand
-from pydantic import BaseModel, Field
+from marsad_contracts.boundary import (
+    CorrelationNotice,
+    IncidentSubmission,
+    Sector,
+    SizeBand,
+)
+from pydantic import BaseModel, Field, ValidationError
 
 from marsad_connector.agents.a2_extract import ExtractionAgent, ExtractionDraft
 from marsad_connector.agents.a3_redact import RedactionAgent, RedactionError
@@ -77,14 +83,26 @@ async def _retention_loop(interval_seconds: int) -> None:
         await asyncio.sleep(interval_seconds)
 
 
+async def _notice_loop(interval_seconds: int) -> None:
+    """Check for notices on a timer. `collect_notices` already absorbs a core outage."""
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            await collect_notices()
+        except Exception:  # the next round may succeed; alerts must not stop for good
+            log.exception("connector.notice_collection_failed")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    interval = settings().retention_purge_interval_seconds
-    task = None
-    if interval > 0 and LOCAL.name == "sql":
-        task = asyncio.create_task(_retention_loop(interval))
+    cfg = settings()
+    tasks = []
+    if cfg.retention_purge_interval_seconds > 0 and LOCAL.name == "sql":
+        tasks.append(asyncio.create_task(_retention_loop(cfg.retention_purge_interval_seconds)))
+    if cfg.notice_poll_interval_seconds > 0:
+        tasks.append(asyncio.create_task(_notice_loop(cfg.notice_poll_interval_seconds)))
     yield
-    if task is not None:
+    for task in tasks:
         task.cancel()
 
 
@@ -289,6 +307,18 @@ async def health():
 async def retention_audit(limit: int = 50):
     """Every scheduled purge and what it did, newest first. Counts only, never text."""
     return LOCAL.retention_runs(limit=limit)
+
+
+@app.get("/v1/notices")
+async def list_notices(limit: int = 200):
+    """What the core has told this firm about matches, newest first. Peer counts only."""
+    return LOCAL.notices(limit=limit)
+
+
+@app.post("/v1/notices/collect")
+async def collect_now():
+    """Check now rather than waiting for the timer. Safe to call at any time."""
+    return await collect_notices()
 
 
 @app.post("/v1/incidents")
@@ -651,6 +681,43 @@ async def _deliver(record: OutboundRecord) -> OutboundRecord:
     return OUTBOUND.attempt(record.submission_id, outcome=Outcome.ACCEPTED,
                             http_status=r.status_code, core_digest=core_digest,
                             core_response=body)
+
+
+#: Re-read this far behind the newest notice held, so a match recorded while the last
+#: check was running is not missed. Duplicates are dropped on the notice id.
+NOTICE_OVERLAP = timedelta(seconds=60)
+
+
+async def collect_notices() -> dict:
+    """
+    Ask the core whether this firm has been matched since it last asked.
+
+    A read. It sends this firm's pseudonym and a timestamp, with no body, and reads no
+    incident. An unreachable core costs a late alert and nothing else, so a failure is
+    reported in the result and never raised: MARSAD stays off the critical path.
+    """
+    cfg = settings()
+    params: dict[str, str] = {"institution_ref": cfg.institution_ref}
+    last = LOCAL.last_notice_at()
+    if last is not None:
+        params["since"] = (last - NOTICE_OVERLAP).isoformat()
+
+    try:
+        async with _core_client(cfg) as client:
+            response = await client.get(f"{cfg.core_url}/v1/notices", params=params)
+        response.raise_for_status()
+        notices = [
+            CorrelationNotice.model_validate(n).model_dump(mode="json")
+            for n in response.json()["notices"]
+        ]
+    except (httpx.HTTPError, ValidationError, ValueError, KeyError, TypeError) as exc:
+        log.warning("connector.notices_unavailable err=%s", type(exc).__name__)
+        return {"collected": False, "new_notices": 0, "error": type(exc).__name__}
+
+    fresh = LOCAL.save_notices(notices)
+    if fresh:
+        log.info("connector.notices_received new=%d", fresh)
+    return {"collected": True, "new_notices": fresh}
 
 
 def _core_tls(cfg) -> dict:

@@ -239,6 +239,28 @@ class RetentionRun(EdgeBase):
     status: Mapped[str] = mapped_column(sa.String(16), default="COMPLETED")
 
 
+class ReceivedNotice(EdgeBase):
+    """
+    A match the core told this firm about. Rung 0: how many peers, never which.
+
+    Kept with the record of what left, because "when were we warned?" is a question an
+    auditor asks long after the narrative has expired. Written by the core's wording of
+    the facts, not by an analyst, and it holds no free text.
+    """
+
+    __tablename__ = "received_notices"
+
+    notice_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(sa.String(32))
+    peer_count: Mapped[int] = mapped_column(sa.Integer)
+    indicator_type: Mapped[str | None] = mapped_column(sa.String(16), default=None)
+    shared_techniques: Mapped[list[str]] = mapped_column(sa.JSON, default=list)
+    similarity: Mapped[float | None] = mapped_column(sa.Float, default=None)
+    campaign_id: Mapped[str | None] = mapped_column(sa.String(64), default=None)
+    detected_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+    received_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
 def expiry_for(created_at: datetime, retention_days: int) -> datetime:
     """The one place a retention deadline is computed. Arithmetic, not judgement."""
     if created_at.tzinfo is None:
@@ -247,7 +269,7 @@ def expiry_for(created_at: datetime, retention_days: int) -> datetime:
 
 
 __all__ = [
-    "ExtractionProvenance", "LocalIncident", "OutboundSubmission", "RetentionRun",
+    "ExtractionProvenance", "LocalIncident", "OutboundSubmission", "ReceivedNotice", "RetentionRun",
     "SubmissionAttempt",
     "expiry_for",
 ]
