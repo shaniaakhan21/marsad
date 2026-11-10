@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api, connectors } from "@/lib/api";
 import type {
-  ConfirmResult, ExtractionDraft, ObligationResult, SupervisorReport, TrackedField,
+  ConfirmResult, ExtractionDraft, ObligationResult, StandardReport, SupervisorReport, TrackedField,
 } from "@/lib/types";
 import { ActionButton, PageHeader } from "@/components/PageHeader";
 import { Cell, Offline, Panel } from "@/components/Panel";
@@ -67,6 +67,95 @@ const INCIDENT = {
   jurisdictions: ["ADGM_FSRA", "DFSA", "CBUAE", "CMA"],
   essential_service_affected: null as boolean | null,
 };
+
+const IMPACT_OPTIONS = {
+  financial_loss: ["NONE", "UNDER_AED_100K", "AED_100K_TO_1M", "AED_1M_TO_10M", "OVER_AED_10M", "UNKNOWN"],
+  customers_affected: ["NONE", "UNDER_100", "FROM_100_TO_1K", "FROM_1K_TO_10K", "OVER_10K", "UNKNOWN"],
+  service_downtime: ["NONE", "UNDER_1H", "FROM_1H_TO_4H", "FROM_4H_TO_24H", "OVER_24H", "UNKNOWN"],
+} as const;
+
+const IMPACT_LABELS: Record<keyof typeof IMPACT_OPTIONS, string> = {
+  financial_loss: "Estimated financial loss",
+  customers_affected: "Customers affected",
+  service_downtime: "Service downtime",
+};
+
+/** Banded impact, a named assessor, and the report it produces. All of it stays in the firm. */
+function ImpactReport({ base, incidentId }: { base: string; incidentId: string }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [systems, setSystems] = useState("");
+  const [assessor, setAssessor] = useState("");
+  const [report, setReport] = useState<StandardReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const ready = assessor.trim() && Object.keys(IMPACT_OPTIONS).every((k) => values[k]);
+
+  const generate = async () => {
+    setError(null);
+    try {
+      await api.recordImpact(base, incidentId, {
+        ...values,
+        systems_affected: systems.split(",").map((x) => x.trim()).filter(Boolean),
+        assessed_by: assessor.trim(),
+      });
+      setReport(await api.standardReport(base, incidentId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <Panel label="Standard incident report" note="Stays in the firm. Provisional format, pending CMA's template">
+      <div className="grid gap-3 md:grid-cols-3">
+        {(Object.keys(IMPACT_OPTIONS) as (keyof typeof IMPACT_OPTIONS)[]).map((field) => (
+          <label key={field} className="text-[14px] text-text-secondary">
+            {IMPACT_LABELS[field]}
+            <select
+              className="mt-1 w-full rounded-[8px] border border-line bg-panel px-2 py-2 text-text-primary"
+              value={values[field] ?? ""}
+              onChange={(e) => setValues({ ...values, [field]: e.target.value })}
+            >
+              <option value="">Select a band</option>
+              {IMPACT_OPTIONS[field].map((o) => <option key={o} value={o}>{o.replaceAll("_", " ")}</option>)}
+            </select>
+          </label>
+        ))}
+        <label className="text-[14px] text-text-secondary md:col-span-2">
+          Systems affected (comma separated)
+          <input className="mt-1 w-full rounded-[8px] border border-line bg-panel px-2 py-2 text-text-primary"
+                 value={systems} onChange={(e) => setSystems(e.target.value)} />
+        </label>
+        <label className="text-[14px] text-text-secondary">
+          Assessed by
+          <input className="mt-1 w-full rounded-[8px] border border-line bg-panel px-2 py-2 text-text-primary"
+                 value={assessor} onChange={(e) => setAssessor(e.target.value)} />
+        </label>
+      </div>
+      <button
+        type="button"
+        disabled={!ready}
+        onClick={generate}
+        className="mt-4 rounded-[8px] bg-volt px-4 py-2 text-[14.5px] font-semibold text-ink disabled:opacity-40"
+      >
+        Generate report
+      </button>
+      {error && <p className="mt-3 text-[14px] text-ember">{error}</p>}
+      {report && (
+        <dl className="mt-5 grid gap-2 text-[14.5px] text-text-secondary md:grid-cols-2">
+          <div><dt className="font-semibold text-text-primary">Reference</dt><dd>{report.incident_ref}</dd></div>
+          <div><dt className="font-semibold text-text-primary">Severity</dt><dd>{report.severity}</dd></div>
+          <div><dt className="font-semibold text-text-primary">Financial loss</dt><dd>{report.impact.financial_loss}</dd></div>
+          <div><dt className="font-semibold text-text-primary">Customers affected</dt><dd>{report.impact.customers_affected}</dd></div>
+          <div><dt className="font-semibold text-text-primary">Downtime</dt><dd>{report.impact.service_downtime}</dd></div>
+          <div><dt className="font-semibold text-text-primary">Notify</dt><dd>{report.notifications.map((n) => n.authority).join(", ") || "None"}</dd></div>
+          <div className="md:col-span-2">
+            <dt className="font-semibold text-text-primary">Completeness</dt>
+            <dd>{report.completeness.complete ? "Complete. The firm reviews and files it." : `Missing: ${report.completeness.missing.join(", ")}`}</dd>
+          </div>
+        </dl>
+      )}
+    </Panel>
+  );
+}
 
 export default function ReportPage() {
   const [narrative, setNarrative] = useState(DEMO_NARRATIVE);
@@ -519,6 +608,8 @@ export default function ReportPage() {
             </p>
           </Panel>
         )}
+
+        {confirmed && <ImpactReport base={connectors[0]} incidentId={confirmed.incident_id} />}
 
         {!sup && !obl && !err && (
           <Panel label="Nothing filed yet">

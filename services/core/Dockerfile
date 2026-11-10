@@ -7,8 +7,9 @@ COPY services/core/pyproject.toml /srv/services/core/
 COPY services/core/marsad_core /srv/services/core/marsad_core
 COPY services/core/alembic.ini /srv/services/core/
 COPY services/core/alembic /srv/services/core/alembic
+COPY contracts/ReceiptAnchor.json /srv/contracts/ReceiptAnchor.json
 RUN pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
-    "psycopg[binary]" alembic openpyxl
+    "psycopg[binary]" alembic openpyxl "web3>=7"
 WORKDIR /srv/services/core
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn marsad_core.main:app --host 0.0.0.0 --port 8000"]

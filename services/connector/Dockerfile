@@ -1,8 +1,12 @@
 FROM python:3.12-slim
 WORKDIR /srv
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+# libsodium provides the curve operations for the OPRF. See marsad_oprf/group.py.
+RUN apt-get update && apt-get install -y --no-install-recommends libsodium23 \
+    && rm -rf /var/lib/apt/lists/*
 COPY packages/contracts /srv/packages/contracts
-RUN pip install -e /srv/packages/contracts
+COPY packages/oprf /srv/packages/oprf
+RUN pip install -e /srv/packages/contracts -e /srv/packages/oprf
 COPY services/connector/pyproject.toml /srv/services/connector/
 COPY services/connector/marsad_connector /srv/services/connector/marsad_connector
 COPY services/connector/alembic.ini /srv/services/connector/

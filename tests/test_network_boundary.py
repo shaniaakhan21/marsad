@@ -415,3 +415,50 @@ def test_no_two_connectors_share_an_edge_network():
     assert not (almaha & gulfsec), (
         f"two institutions share network(s) {almaha & gulfsec}"
     )
+
+
+# ================================================================ key custodians
+
+
+def test_a_connector_cannot_reach_a_key_custodian_directly_at_the_network_layer():
+    """One path to the custodians, through a gateway that forwards evaluate and nothing else."""
+    outcome = probe("connector-almaha", "evaluator-1")
+    assert outcome["outcome"] in (DNS_FAILURE, NETWORK_FAILURE), outcome
+
+
+def test_the_core_cannot_reach_a_key_custodian_at_the_network_layer():
+    """
+    The party holding tokens must not be able to ask for more of them. A core that could
+    call an evaluator could test guesses against its own stored tokens.
+    """
+    outcome = probe("core", "evaluator-1")
+    assert outcome["outcome"] in (DNS_FAILURE, NETWORK_FAILURE), outcome
+
+
+def test_a_key_custodian_cannot_reach_the_core_at_the_network_layer():
+    # The custodian image carries no HTTP client, so this probe is a bare socket.
+    snippet = (
+        "import socket\n"
+        "try:\n"
+        "    socket.create_connection(('core', 8000), timeout=5)\n"
+        "    print('REACHED')\n"
+        "except OSError as exc:\n"
+        "    print('UNREACHABLE', type(exc).__name__)\n"
+    )
+    result = _compose("exec", "-T", "evaluator-1", "python", "-c", snippet)
+    assert result.returncode == 0, result.stderr[:400]
+    assert result.stdout.strip().startswith("UNREACHABLE"), result.stdout
+
+
+def test_the_oprf_gateway_forwards_only_evaluate():
+    snippet = (
+        "import json, httpx\n"
+        "out = []\n"
+        "for m, p in [('GET','/c1/health'),('GET','/c1/v1/oprf/metering'),"
+        "('GET','/c1/v1/oprf/evaluate'),('POST','/v1/submissions')]:\n"
+        "    out.append(httpx.request(m, 'http://oprf-gateway:8000'+p, timeout=10).status_code)\n"
+        "print(json.dumps(out))\n"
+    )
+    result = _compose("exec", "-T", "connector-almaha", "python", "-c", snippet)
+    assert result.returncode == 0, result.stderr[:400]
+    assert json.loads(result.stdout.strip().splitlines()[-1]) == [403, 403, 403, 403]

@@ -13,6 +13,8 @@
 
 {
 	email {$ACME_EMAIL}
+	# rate_limit comes from a plugin, so it has no default position in the handler chain.
+	order rate_limit before basicauth
 	# Reject anything not matched by a site block rather than serving a default.
 	servers {
 		trusted_proxies static private_ranges
@@ -42,6 +44,7 @@
 		method GET
 		path /health /v1/correlations /v1/concentration /v1/roadmap
 		path /v1/data/sources /v1/data/market /v1/data/cohorts /v1/data/freshness
+		path /v1/receipts/* /v1/ledger /v1/regulator/overview
 	}
 	handle @reads {
 		reverse_proxy core:8000
@@ -73,7 +76,7 @@
 		}
 	}
 
-	# Even authenticated, a connector may only submit. Everything else about the
+	# Even authenticated, a connector may only submit and evaluate. Everything else about the
 	# core — correlations, concentration, other institutions' data — is none of an
 	# institution's business.
 	@submit {
@@ -88,13 +91,26 @@
 				window 1m
 			}
 		}
-		# Pass the verified identity through so core can log which pseudonym
-		# submitted without trusting anything the client asserts in a header.
-		header_up X-Client-Cert-Subject {http.request.tls.client.subject}
-		reverse_proxy core:8000
+		# Pass the verified identity through so core can bind it to the payload. This
+		# replaces any value the client sent, which is why core may believe it.
+		reverse_proxy core:8000 {
+			header_up X-Client-Cert-Subject {http.request.tls.client.subject}
+		}
+	}
+
+	# The key custodians, for a connector on separate hardware. Blinded elements only.
+	@custodian {
+		method POST
+		path_regexp custodian ^/c([123])/v1/oprf/evaluate$
+	}
+	handle @custodian {
+		rewrite * /v1/oprf/evaluate
+		reverse_proxy evaluator-{re.custodian.1}:8000 {
+			header_up X-Client-Cert-Subject {http.request.tls.client.subject}
+		}
 	}
 
 	handle {
-		respond `{"error":"mutual TLS grants POST /v1/submissions and nothing else"}` 403
+		respond `{"error":"mutual TLS grants submission and token evaluation only"}` 403
 	}
 }

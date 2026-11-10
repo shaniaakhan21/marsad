@@ -312,3 +312,59 @@ export interface ConfirmResult {
   affected_services: string[];
   third_party_dependencies: string[];
 }
+
+/* ------------------------------------------------------------------ *
+ * Audit ledger, regulator view and the standard report.
+ * ------------------------------------------------------------------ */
+
+export interface ReceiptProof {
+  receipt: string;
+  status: "NOT_YET_BATCHED" | "PENDING" | "ANCHORED";
+  verified: boolean;
+  payload_digest?: string;
+  merkle_root?: string;
+  batch_id?: number;
+  position?: number;
+  path?: { side: "left" | "right"; hash: string }[];
+  ledger?: {
+    backend: string | null; transaction: string | null; block: number | null;
+    anchored_at: string | null; reduced_fidelity: boolean; error: string | null;
+  };
+  checks?: { record_unchanged: boolean; included_in_batch: boolean; root_on_ledger: boolean };
+}
+
+export interface RegulatorOverview {
+  gate: { k: number; satisfied: boolean };
+  withheld?: string;
+  participants?: number;
+  market_coverage?: number;
+  campaigns?: {
+    published: {
+      campaign_id: string; institutions: number; kinds: string[]; techniques: string[];
+      first_seen: string; reduced_fidelity: boolean;
+    }[];
+    withheld_below_k: number;
+  };
+  sectors?: { groups: { group: string; institutions: number; incidents: number }[]; pooling_applied: boolean };
+  trend?: {
+    weeks: { week: string; incidents: number; by_severity: Record<string, number> }[];
+    weeks_withheld_below_k: number;
+  };
+  techniques?: { technique: string; institutions: number }[];
+  concentration: ConcentrationReport;
+  impact: { available: boolean; reason: string };
+}
+
+export interface StandardReport {
+  template: { version: string; status: string; note: string };
+  incident_ref: string;
+  detected_at: string | null;
+  severity: string;
+  description: string | null;
+  impact: {
+    financial_loss: string | null; customers_affected: string | null;
+    service_downtime: string | null; systems_affected: string[]; assessed_by: string | null;
+  };
+  notifications: { authority: string; applicability: string; deadline: string | null }[];
+  completeness: { complete: boolean; missing: string[] };
+}

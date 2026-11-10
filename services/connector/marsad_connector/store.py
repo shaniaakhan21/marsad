@@ -20,7 +20,13 @@ from typing import Any, Protocol
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
 
-from marsad_connector.db.models import ExtractionProvenance, LocalIncident, expiry_for
+from marsad_connector.db.models import (
+    ExtractionProvenance,
+    LocalIncident,
+    RetentionRun,
+    expiry_for,
+)
+from marsad_connector.db.retention import purge_expired
 from marsad_connector.db.session import session_scope
 
 log = logging.getLogger("marsad.connector.store")
@@ -34,6 +40,10 @@ class EdgeStore(Protocol):
     def get(self, incident_id: str) -> Any | None: ...
     def __contains__(self, incident_id: str) -> bool: ...
     def count(self) -> int: ...
+    def set_impact(self, incident_id: str, impact: dict[str, Any],
+                   systems_affected: list[str]) -> None: ...
+    def purge_expired(self, now: datetime | None = None) -> dict[str, Any]: ...
+    def retention_runs(self, limit: int = 50) -> list[dict[str, Any]]: ...
 
 
 class InMemoryStore:
@@ -60,6 +70,18 @@ class InMemoryStore:
 
     def count(self) -> int:
         return len(self._incidents)
+
+    def set_impact(self, incident_id, impact, systems_affected) -> None:
+        incident = self._incidents[incident_id]
+        incident.impact = impact
+        incident.systems_affected = systems_affected
+
+    def purge_expired(self, now=None) -> dict[str, Any]:
+        """Nothing outlives this process here, so there is nothing to expire."""
+        return {"incidents_redacted": 0, "provenance_rows_deleted": 0}
+
+    def retention_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        return []
 
 
 class SqlStore:
@@ -135,6 +157,8 @@ class SqlStore:
                 raw_email=row.raw_email,
                 source=row.source,
                 confirmed_by=row.confirmed_by,
+                impact=row.impact,
+                systems_affected=row.systems_affected,
             ) if self._model else row
 
     def provenance_for(self, incident_id) -> list[dict[str, Any]]:
@@ -157,6 +181,46 @@ class SqlStore:
         with session_scope(self._factory) as session:
             return int(session.scalar(
                 sa.select(sa.func.count()).select_from(LocalIncident)) or 0)
+
+    def set_impact(self, incident_id, impact, systems_affected) -> None:
+        """Its own update, because `save` rebuilds the row and would drop its provenance."""
+        with session_scope(self._factory) as session:
+            row = session.get(LocalIncident, incident_id)
+            row.impact = impact
+            row.systems_affected = systems_affected
+
+    def purge_expired(self, now: datetime | None = None) -> dict[str, Any]:
+        """
+        Run the retention purge once and record that it ran, in one transaction.
+
+        A failure rolls the purge back and writes a FAILED row in a second transaction,
+        so the audit trail shows the gap instead of being silent about it.
+        """
+        try:
+            with session_scope(self._factory) as session:
+                result = purge_expired(session, now=now, retention_days=self._retention_days)
+                session.add(RetentionRun(
+                    retention_days=self._retention_days,
+                    incidents_redacted=result.incidents_redacted,
+                    provenance_rows_deleted=result.provenance_rows_deleted,
+                ))
+                return result.as_dict()
+        except Exception:
+            with session_scope(self._factory) as session:
+                session.add(RetentionRun(retention_days=self._retention_days, status="FAILED"))
+            raise
+
+    def retention_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        with session_scope(self._factory) as session:
+            rows = session.scalars(
+                sa.select(RetentionRun).order_by(RetentionRun.id.desc()).limit(limit)
+            ).all()
+            return [
+                {"ran_at": r.ran_at.isoformat(), "retention_days": r.retention_days,
+                 "incidents_redacted": r.incidents_redacted,
+                 "provenance_rows_deleted": r.provenance_rows_deleted, "status": r.status}
+                for r in rows
+            ]
 
 
 def provenance_from_draft(draft) -> list[dict[str, Any]]:

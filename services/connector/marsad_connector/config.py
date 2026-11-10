@@ -32,6 +32,17 @@ class Settings(BaseSettings):
     core_ca_bundle: str = ""
     token_key: str = ""
     tokeniser: str = "hmac"          # hmac | oprf
+
+    #: The key epoch and the values this connector pins for it, from
+    #: scripts/oprf_keygen.py. Pinned, not fetched: an evaluator that supplied its own
+    #: public key could prove anything. `oprf_custodians` is a JSON list of
+    #: {"index", "url", "public_share"}.
+    oprf_epoch: int = 1
+    oprf_threshold: int = 2
+    oprf_group_key: str = ""
+    oprf_custodians: str = "[]"
+    #: Recorded in the tokeniser scheme: "software" until shares move to hardware.
+    oprf_custody_label: str = "software"
     #: The institution's own store. Holds plaintext, and the core has no route to
     #: it — separate instance, separate schema, separate MetaData. See db/base.py.
     database_url: str = "sqlite:///./connector.db"
@@ -44,6 +55,19 @@ class Settings(BaseSettings):
     #: extraction provenance row expire. Provenance quotes the narrative verbatim, so
     #: it expires with it and never after it. See db/retention.py.
     retention_days: int = 90
+
+    #: How often the purge runs, in seconds. A policy nobody executes is a sentence in a
+    #: document. 0 turns the schedule off; only tests should want that.
+    retention_purge_interval_seconds: int = 3600
+
+    #: Browser origins allowed to call this connector, comma separated. Never `*`: this
+    #: process serves plaintext incidents, and a wildcard would let any page an analyst
+    #: visits read them.
+    cors_origins: str = "http://localhost:3000"
+
+    #: Bearer token for the analyst console. Empty leaves the API open, for a connector
+    #: reachable only on the analyst's own machine; /health reports which it is.
+    console_token: str = ""
     llm_provider: str = "stub"       # stub | openai_compatible
 
     #: OpenAI-compatible root (the URL ending in /v1) of a model served inside the

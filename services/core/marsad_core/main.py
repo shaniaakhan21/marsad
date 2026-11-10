@@ -4,8 +4,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from marsad_contracts.boundary import IncidentSubmission
 
@@ -16,6 +17,15 @@ from marsad_core.data import uae_open_data as od
 from marsad_core.db.session import build_engine, build_sessionmaker, create_all
 from marsad_core.engines.correlation import CorrelationEngine
 from marsad_core.engines.similarity import build_similarity_engine
+from marsad_core.ledger.anchoring import Anchorer
+from marsad_core.ledger.backends import BesuLedger, LedgerBackend, LocalChainLedger
+from marsad_core.security import (
+    assert_bound_to,
+    connector_identity,
+    console_role,
+    parse_origins,
+)
+from marsad_core.services import regulator as regulator_view
 from marsad_core.services.concentration import (
     ProviderDependency,
     Substitutability,
@@ -79,6 +89,23 @@ SEED_DEPENDENCIES: list[ProviderDependency] = [
 ]
 
 
+def _build_ledger(cfg, factory) -> LedgerBackend:
+    if cfg.ledger_backend == "besu":
+        return BesuLedger(cfg.besu_rpc_url, cfg.besu_contract_address, cfg.besu_private_key,
+                          cfg.besu_artifact_path)
+    return LocalChainLedger(factory)
+
+
+async def _anchor_loop(anchorer: Anchorer, interval_seconds: int) -> None:
+    """Anchor on a timer. A failed round is logged and retried; submissions never wait."""
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            await asyncio.to_thread(anchorer.run_once)
+        except Exception:  # the audit trail may lag, but it must not stop for good
+            log.exception("core.anchor_run_failed")
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     cfg = settings()
@@ -101,7 +128,9 @@ async def lifespan(_: FastAPI):
         if cfg.auto_create_schema:
             create_all(db_engine)
         STATE["db_engine"] = db_engine
-        STATE["store"] = SqlStore(build_sessionmaker(db_engine))
+        factory = build_sessionmaker(db_engine)
+        STATE["store"] = SqlStore(factory)
+        STATE["anchorer"] = Anchorer(factory, _build_ledger(cfg, factory), STATE["store"])
         rehydrate(STATE["engine"], STATE["store"])
         # Rehydration re-finds old matches and discards them, correctly — they were
         # stored when first found. The list the dashboard reads comes from the store.
@@ -111,29 +140,49 @@ async def lifespan(_: FastAPI):
         "core.ready similarity=%s k=%d store=%s",
         cfg.similarity_engine, cfg.k_anonymity, STATE["store"].name,
     )
+    anchor_task = None
+    if STATE.get("anchorer") is not None and cfg.anchor_interval_seconds > 0:
+        anchor_task = asyncio.create_task(
+            _anchor_loop(STATE["anchorer"], cfg.anchor_interval_seconds))
     yield
+    if anchor_task is not None:
+        anchor_task.cancel()
 
 
 app = FastAPI(title="MARSAD Core", version="0.2.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=parse_origins(settings().cors_origins),
+    allow_methods=["GET", "POST"],
+    allow_headers=["authorization", "content-type"],
+)
 
 
 @app.get("/health")
 async def health():
+    cfg = settings()
     return {
         "ok": True,
         "submissions": STATE["store"].submission_count(),
         "store": STATE["store"].name,
+        # Reported so a core without enforcement cannot be mistaken for one with it.
+        "client_identity_required": cfg.require_client_identity,
+        "console_auth_required": bool(cfg.console_tokens),
     }
 
 
 @app.post("/v1/submissions")
-async def submit(sub: IncidentSubmission):
+async def submit(
+    sub: IncidentSubmission,
+    certified: Annotated[str | None, Depends(connector_identity)],
+):
     """
     The only ingress for incident data. FastAPI validates against the boundary
     contract before this function body runs, so a payload carrying a forbidden
     field is rejected at the edge of the process with a 422.
     """
+    assert_bound_to(certified, sub.institution_ref)
+
     engine: CorrelationEngine = STATE["engine"]
     hits = engine.ingest(sub)
     STATE["hits"].extend(hits)
@@ -167,7 +216,7 @@ async def submit(sub: IncidentSubmission):
     }
 
 
-@app.get("/v1/correlations")
+@app.get("/v1/correlations", dependencies=[Depends(console_role)])
 async def correlations():
     engine: CorrelationEngine = STATE["engine"]
     return [
@@ -186,7 +235,7 @@ async def correlations():
     ]
 
 
-@app.get("/v1/concentration")
+@app.get("/v1/concentration", dependencies=[Depends(console_role)])
 async def concentration(total_participants: int | None = None):
     """
     Ranked single points of failure, each carrying its exposure in AED.
@@ -239,6 +288,45 @@ async def concentration(total_participants: int | None = None):
         "providers": out,
         "basis": od.market_basis(),
     }
+
+
+@app.get("/v1/regulator/overview", dependencies=[Depends(console_role)])
+async def regulator_overview():
+    """Campaigns, sectors, trends and shared-provider risk. Aggregates only; see the module."""
+    engine: CorrelationEngine = STATE["engine"]
+    return regulator_view.overview(
+        STATE["store"].all_submissions(), STATE["hits"], k=settings().k_anonymity,
+        may_publish=engine.may_publish_aggregate,
+        concentration=await concentration(),
+    )
+
+
+# --------------------------------------------------------------------------
+# Audit ledger — open to anyone holding a receipt. Hashes only, nothing about who.
+# --------------------------------------------------------------------------
+
+
+def _anchorer() -> Anchorer:
+    anchorer = STATE.get("anchorer")
+    if anchorer is None:
+        raise HTTPException(503, "the audit ledger needs the sql store")
+    return anchorer
+
+
+@app.get("/v1/ledger")
+async def ledger_status():
+    return _anchorer().status()
+
+
+@app.get("/v1/receipts/{receipt}/proof")
+async def receipt_proof(receipt: str):
+    """Whether this receipt is anchored, and whether its record is still what was anchored."""
+    if len(receipt) != 64 or any(c not in "0123456789abcdef" for c in receipt):
+        raise HTTPException(422, "a receipt is 64 lowercase hex characters")
+    result = await asyncio.to_thread(_anchorer().proof, receipt)
+    if result is None:
+        raise HTTPException(404, "unknown receipt")
+    return result
 
 
 # --------------------------------------------------------------------------

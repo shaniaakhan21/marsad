@@ -47,7 +47,9 @@ log = logging.getLogger("marsad.connector.retention")
 #: Columns cleared when an incident's free text expires. Listed explicitly rather
 #: than derived, so adding a new free-text column is a decision someone makes about
 #: retention rather than an omission nobody notices.
-FREE_TEXT_COLUMNS = ("narrative", "narrative_normalised", "analyst_notes", "raw_email")
+FREE_TEXT_COLUMNS = (
+    "narrative", "narrative_normalised", "analyst_notes", "raw_email", "systems_affected",
+)
 
 
 @dataclass(frozen=True)

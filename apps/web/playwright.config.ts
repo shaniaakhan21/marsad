@@ -28,6 +28,7 @@ function connectorCommand(env: Record<string, string>, port: number) {
     MARSAD_CORE_URL: CORE_URL,
     MARSAD_TOKEN_KEY: TOKEN_KEY,
     MARSAD_TOKENISER: "hmac",
+    MARSAD_CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
     ...env,
   })
     .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
@@ -52,7 +53,7 @@ export default defineConfig({
     {
       command:
         `node e2e/support/seed-cache.mjs && cd ../../services/core && ` +
-        `HTTPS_PROXY=${UNREACHABLE_PROXY} HTTP_PROXY=${UNREACHABLE_PROXY} ` +
+        `MARSAD_CORE_CORS_ORIGINS=http://localhost:${WEB_PORT} HTTPS_PROXY=${UNREACHABLE_PROXY} HTTP_PROXY=${UNREACHABLE_PROXY} ` +
         `uvicorn marsad_core.main:app --port ${CORE_PORT}`,
       url: `${CORE_URL}/health`,
       reuseExistingServer: false,

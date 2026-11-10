@@ -68,6 +68,9 @@ class LocalIncident(EdgeBase):
     analyst_notes: Mapped[str | None] = mapped_column(sa.Text, default=None)
     #: Attacker-authored. The hostile channel A14 inspects as data, never instruction.
     raw_email: Mapped[str | None] = mapped_column(sa.Text, default=None)
+    #: Names of the firm's own systems, from the impact assessment. On the never-cross
+    #: list, and analyst-written, so it expires with the rest of the free text.
+    systems_affected: Mapped[list[str] | None] = mapped_column(sa.JSON, default=None)
 
     # -- structural: kept --------------------------------------------------
     indicators: Mapped[list[dict[str, Any]]] = mapped_column(sa.JSON, default=list)
@@ -84,6 +87,9 @@ class LocalIncident(EdgeBase):
     jurisdictions: Mapped[list[str]] = mapped_column(sa.JSON, default=list)
     essential_service_affected: Mapped[bool | None] = mapped_column(sa.Boolean, default=None)
     submitted_submission_id: Mapped[str | None] = mapped_column(sa.String(64), default=None)
+    #: Banded loss, customers and downtime, and who assessed them. For the firm's own
+    #: report only: A3 does not read this and the boundary contract cannot carry it.
+    impact: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, default=None)
 
     # -- provenance of the incident itself ---------------------------------
     #: "ANALYST_STRUCTURED" or "EXTRACTION_CONFIRMED". There is deliberately no third
@@ -213,6 +219,26 @@ class SubmissionAttempt(EdgeBase):
     submission: Mapped[OutboundSubmission] = relationship(back_populates="attempts")
 
 
+class RetentionRun(EdgeBase):
+    """
+    One execution of the retention purge, and what it did.
+
+    The evidence that the policy is carried out, for the auditor who asks. Counts and
+    timestamps only: a log of what was deleted that quoted it would keep it.
+    """
+
+    __tablename__ = "retention_runs"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    ran_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow, index=True)
+    retention_days: Mapped[int] = mapped_column(sa.Integer)
+    incidents_redacted: Mapped[int] = mapped_column(sa.Integer, default=0)
+    provenance_rows_deleted: Mapped[int] = mapped_column(sa.Integer, default=0)
+    #: COMPLETED or FAILED. A failed run is recorded, so a gap reads as a failure rather
+    #: than as nothing having been due.
+    status: Mapped[str] = mapped_column(sa.String(16), default="COMPLETED")
+
+
 def expiry_for(created_at: datetime, retention_days: int) -> datetime:
     """The one place a retention deadline is computed. Arithmetic, not judgement."""
     if created_at.tzinfo is None:
@@ -221,6 +247,7 @@ def expiry_for(created_at: datetime, retention_days: int) -> datetime:
 
 
 __all__ = [
-    "ExtractionProvenance", "LocalIncident", "OutboundSubmission", "SubmissionAttempt",
+    "ExtractionProvenance", "LocalIncident", "OutboundSubmission", "RetentionRun",
+    "SubmissionAttempt",
     "expiry_for",
 ]

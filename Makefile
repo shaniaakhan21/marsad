@@ -1,8 +1,8 @@
-.PHONY: install test test-network test-e2e test-boundary test-llm run down demo record lint migrate
+.PHONY: ledger test-ledger install test test-network test-e2e test-boundary test-llm run down demo record lint migrate
 install:
-	pip install -e packages/contracts
+	pip install -e packages/contracts -e packages/oprf
 	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
-	  "psycopg[binary]" alembic openpyxl pytest ruff
+	  "psycopg[binary]" alembic openpyxl pytest ruff "web3>=7"
 	# The oracle for the vendored Arabic normalisation. A test dependency only — it is
 	# never installed in the connector image. See services/connector/pyproject.toml.
 	pip install "camel-tools>=1.5"
@@ -23,6 +23,13 @@ test-boundary:
 # see docs/model-path-results.md for what running it found.
 test-llm:
 	python -m pytest tests/test_llm_live.py -v -m llm
+
+# The permissioned test ledger: three QBFT validators and the anchoring contract.
+ledger:
+	docker compose -f docker-compose.yml -f docker-compose.ledger.yml up -d --build
+	python scripts/deploy_anchor.py
+test-ledger:
+	python -m pytest tests/test_besu_ledger.py -v -m ledger
 
 lint:
 	ruff check packages services tests

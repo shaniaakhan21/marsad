@@ -25,7 +25,8 @@ jobs:
 
       - name: Install
         run: |
-          pip install -e packages/contracts
+          sudo apt-get update && sudo apt-get install -y libsodium23
+          pip install -e packages/contracts -e packages/oprf
           pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx \
                       sqlalchemy "psycopg[binary]" alembic openpyxl pytest ruff
           # The oracle the vendored Arabic normalisation is checked against, codepoint

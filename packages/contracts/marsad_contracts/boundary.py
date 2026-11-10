@@ -207,6 +207,36 @@ class ResponseActionStatus(StrictModel):
 
 
 # --------------------------------------------------------------------------
+# Key-custodian exchange — a separate crossing, to separate parties
+#
+# Sent by a connector to the holders of token-key shares, never to the core. A blinded
+# element is a uniformly random group element, re-randomised on every request, so it
+# carries no information about the indicator it was derived from. These models carry
+# nothing else, for the same reason as everything above: the shape cannot express more.
+# --------------------------------------------------------------------------
+
+GroupElement = Annotated[str, Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")]
+
+
+class OprfEvaluationRequest(StrictModel):
+    """Blinded elements for one incident, under one key epoch."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    epoch: int = Field(ge=0)
+    blinded_elements: list[GroupElement] = Field(min_length=1, max_length=512)
+
+
+class OprfEvaluationResponse(StrictModel):
+    """One custodian's partial evaluation, and its proof that it used its share."""
+
+    schema_version: Literal["1.0"] = "1.0"
+    epoch: int = Field(ge=0)
+    index: int = Field(ge=1)
+    evaluated_elements: list[GroupElement] = Field(min_length=1, max_length=512)
+    proof: Annotated[str, Field(min_length=128, max_length=128, pattern=r"^[0-9a-f]{128}$")]
+
+
+# --------------------------------------------------------------------------
 # Core-derived types (never emitted by a connector; returned to institutions)
 # --------------------------------------------------------------------------
 
@@ -236,4 +266,5 @@ __all__ = [
     "TelemetrySignal", "ActionStatus", "KeyedToken", "CoarseMetadata",
     "ObligationReceiptRef", "IncidentSubmission", "TelemetrySample",
     "ResponseActionStatus", "CorrelationKind", "CorrelationNotice",
+    "OprfEvaluationRequest", "OprfEvaluationResponse",
 ]

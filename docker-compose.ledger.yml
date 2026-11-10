@@ -1,0 +1,54 @@
+# The permissioned test ledger. Layer it on the main file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.ledger.yml up -d --build
+#   python scripts/deploy_anchor.py
+#
+# Three QBFT validators on their own network, which only the core joins. The node names
+# stand for the proposed operators; here they all run on one machine, from one image.
+networks:
+  ledger_net:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+# The chain must outlive its containers, or every anchored root disappears on a rebuild.
+volumes:
+  besu_cma_data: {}
+  besu_council_data: {}
+  besu_firm_data: {}
+
+services:
+  besu-cma: &validator
+    build: { context: ., dockerfile: deploy/besu/Dockerfile }
+    environment: { NODE_INDEX: "1", NODE_IP: 172.30.0.11, BOOT_IP: 172.30.0.11 }
+    volumes: ["besu_cma_data:/var/lib/besu-data"]
+    ports: ["127.0.0.1:8545:8545"]
+    networks:
+      ledger_net: { ipv4_address: 172.30.0.11 }
+
+  besu-council:
+    <<: *validator
+    environment: { NODE_INDEX: "2", NODE_IP: 172.30.0.12, BOOT_IP: 172.30.0.11 }
+    volumes: ["besu_council_data:/var/lib/besu-data"]
+    ports: []
+    networks:
+      ledger_net: { ipv4_address: 172.30.0.12 }
+    depends_on: [besu-cma]
+
+  besu-firm:
+    <<: *validator
+    environment: { NODE_INDEX: "3", NODE_IP: 172.30.0.13, BOOT_IP: 172.30.0.11 }
+    volumes: ["besu_firm_data:/var/lib/besu-data"]
+    ports: []
+    networks:
+      ledger_net: { ipv4_address: 172.30.0.13 }
+    depends_on: [besu-cma]
+
+  core:
+    environment:
+      MARSAD_CORE_LEDGER_BACKEND: besu
+      MARSAD_CORE_BESU_RPC_URL: "http://172.30.0.11:8545"
+      # DEV-ONLY operator key. The contract address follows from it on a fresh chain.
+      MARSAD_CORE_BESU_PRIVATE_KEY: "0x7d1f0f3c6d6a4e7ba13c5a0ad1f1b6c0b4a1a3c9f6e24f7e8d5b9c1a2e3f4a5b"
+      MARSAD_CORE_BESU_CONTRACT_ADDRESS: "0x36FdED974f87284B7024D8Aae2BAD50A697EB0aA"
+    networks: [core_net, ledger_net]

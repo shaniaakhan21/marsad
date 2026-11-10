@@ -8,25 +8,36 @@ has re-checked against that record.
 """
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import hmac
 import logging
 import ssl
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from marsad_contracts.boundary import IncidentSubmission, Sector, SizeBand
 from pydantic import BaseModel, Field
 
 from marsad_connector.agents.a2_extract import ExtractionAgent, ExtractionDraft
 from marsad_connector.agents.a3_redact import RedactionAgent, RedactionError
 from marsad_connector.agents.a4_obligation import resolve as resolve_obligations
+from marsad_connector.agents.a5_report import ImpactAssessment, build_report
 from marsad_connector.agents.a14_supervisor import inspect as inspect_for_injection
 from marsad_connector.config import settings
-from marsad_connector.crypto.tokeniser import build_tokeniser
+from marsad_connector.crypto.tokeniser import (
+    OprfUnavailable,
+    Tokeniser,
+    TokenNotEvaluated,
+    build_tokeniser,
+)
 from marsad_connector.db.session import build_engine, build_sessionmaker, create_all
 from marsad_connector.llm.budget import CallBudget
 from marsad_connector.llm.provider import LLMProvider, build_llm
@@ -41,8 +52,72 @@ from marsad_connector.store import InMemoryStore, SqlStore, provenance_from_draf
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("marsad.connector")
 
-app = FastAPI(title="MARSAD Connector", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+def _allowed_origins() -> list[str]:
+    """`*` is refused: this process serves plaintext to whichever origin may read it."""
+    origins = [o.strip().rstrip("/") for o in settings().cors_origins.split(",") if o.strip()]
+    if "*" in origins:
+        raise RuntimeError("CORS origin '*' is not permitted; list the console address")
+    return origins
+
+
+async def _retention_loop(interval_seconds: int) -> None:
+    """
+    Run the purge on a schedule, for as long as this process lives.
+
+    A failed run is recorded and the loop carries on: one bad night must not silently
+    end retention for the rest of the connector's life.
+    """
+    while True:
+        try:
+            result = await asyncio.to_thread(LOCAL.purge_expired)
+            log.info("connector.retention_run result=%s", result)
+        except Exception:  # see the docstring; the failure is logged, not swallowed
+            log.exception("connector.retention_run_failed")
+        await asyncio.sleep(interval_seconds)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    interval = settings().retention_purge_interval_seconds
+    task = None
+    if interval > 0 and LOCAL.name == "sql":
+        task = asyncio.create_task(_retention_loop(interval))
+    yield
+    if task is not None:
+        task.cancel()
+
+
+app = FastAPI(title="MARSAD Connector", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def _console_auth(request: Request, call_next):
+    """
+    Every route but /health needs the console token, when one is configured.
+
+    Middleware rather than a per-route dependency because this process holds plaintext:
+    a route added next year must be protected without anyone remembering to protect it.
+    """
+    token = settings().console_token
+    if token and request.method != "OPTIONS" and request.url.path != "/health":
+        scheme, _, presented = request.headers.get("authorization", "").partition(" ")
+        expected = hashlib.sha256(token.encode()).digest()
+        supplied = hashlib.sha256(presented.strip().encode()).digest()
+        if scheme.lower() != "bearer" or not hmac.compare_digest(expected, supplied):
+            return JSONResponse({"detail": "console token required"}, status_code=401,
+                                headers={"WWW-Authenticate": "Bearer"})
+    return await call_next(request)
+
+
+# Added after the auth middleware so it runs first: a 401 still needs CORS headers for
+# the browser to be able to read it and ask the analyst for a token.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins(),
+    allow_methods=["GET", "POST"],
+    allow_headers=["authorization", "content-type"],
+)
 
 def _build_stores():
     """
@@ -64,6 +139,25 @@ def _build_stores():
                  model=lambda **kw: IncidentIn(**kw)),
         SqlOutboundLog(factory),
     )
+
+
+def _build_oprf_at_startup():
+    """
+    Check the pinned custodian keys while booting, for the same reason as the LLM check.
+
+    A key set from two different ceremonies passes every proof and yields tokens that
+    never match anyone's, so it must stop the connector, not surface as "no correlation".
+    """
+    cfg = settings()
+    if cfg.tokeniser.lower() != "oprf":
+        return None
+    from marsad_connector.crypto.oprf_client import OprfConfig
+
+    return OprfConfig.parse(cfg.oprf_epoch, cfg.oprf_threshold, cfg.oprf_group_key,
+                            cfg.oprf_custodians, cfg.oprf_custody_label)
+
+
+OPRF_CONFIG = _build_oprf_at_startup()
 
 
 #: LOCAL — the institution's incidents. Plaintext, and it never leaves this process
@@ -149,6 +243,10 @@ class IncidentIn(BaseModel):
     source: str = "ANALYST_STRUCTURED"
     confirmed_by: str | None = None
 
+    #: For the firm's own report. Never read by A3, and absent from the boundary contract.
+    impact: dict[str, Any] | None = None
+    systems_affected: list[str] | None = None
+
 
 class ExtractIn(BaseModel):
     """Free text as an analyst types it. No structure required, none assumed."""
@@ -183,7 +281,14 @@ async def health():
         "queued_submissions": len(OUTBOUND.queued()),
         "llm_provider": LLM.name,
         "sovereign_mode": cfg.sovereign_mode,
+        "console_auth_required": bool(cfg.console_token),
     }
+
+
+@app.get("/v1/retention/audit")
+async def retention_audit(limit: int = 50):
+    """Every scheduled purge and what it did, newest first. Counts only, never text."""
+    return LOCAL.retention_runs(limit=limit)
 
 
 @app.post("/v1/incidents")
@@ -317,7 +422,7 @@ async def get_incident(iid: str):
     return LOCAL.get(iid)
 
 
-@app.post("/v1/incidents/{iid}/obligations")
+@app.api_route("/v1/incidents/{iid}/obligations", methods=["GET", "POST"])
 async def obligations(iid: str):
     """
     A4 — resolve every notification duty for this incident.
@@ -328,16 +433,37 @@ async def obligations(iid: str):
     """
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
-    inc = LOCAL.get(iid)
-    cfg = settings()
-    result = resolve_obligations(
+    return _resolve_for(iid, LOCAL.get(iid))
+
+
+def _resolve_for(iid: str, inc: IncidentIn) -> dict:
+    """Same inputs, same duties: the obligations endpoint and the report must agree."""
+    return resolve_obligations(
         severity=inc.severity,
         detected_at=inc.detected_at or datetime.now(timezone.utc),
-        jurisdictions=inc.jurisdictions or cfg.jurisdictions,
+        jurisdictions=inc.jurisdictions or settings().jurisdictions,
         essential_service_affected=inc.essential_service_affected,
         incident_ref=iid[:8].upper(),
-    )
-    return result.as_dict()
+    ).as_dict()
+
+
+@app.post("/v1/incidents/{iid}/impact")
+async def record_impact(iid: str, body: ImpactAssessment):
+    """Record a named analyst's banded assessment. Stored locally; it never crosses."""
+    if iid not in LOCAL:
+        raise HTTPException(404, "unknown incident")
+    impact = body.model_dump(exclude={"systems_affected"})
+    LOCAL.set_impact(iid, impact, list(body.systems_affected))
+    return {"incident_id": iid, "stored_locally": True, "submitted": False}
+
+
+@app.get("/v1/incidents/{iid}/standard-report")
+async def standard_report(iid: str):
+    """The firm's report in one format, with what is still missing. The firm files it."""
+    if iid not in LOCAL:
+        raise HTTPException(404, "unknown incident")
+    inc = LOCAL.get(iid)
+    return build_report(iid, inc, _resolve_for(iid, inc))
 
 
 @app.post("/v1/incidents/{iid}/supervise")
@@ -351,7 +477,7 @@ async def supervise(iid: str):
     ).as_dict()
 
 
-@app.post("/v1/incidents/{iid}/preview")
+@app.api_route("/v1/incidents/{iid}/preview", methods=["GET", "POST"])
 async def preview(iid: str) -> IncidentSubmission:
     """
     Show exactly what would cross the boundary, without sending it.
@@ -359,7 +485,7 @@ async def preview(iid: str) -> IncidentSubmission:
     Deliberately a first-class endpoint: an institution's security team can
     inspect the emitted payload for any incident before enabling submission.
     """
-    return _build(iid)[0]
+    return (await _build(iid))[0]
 
 
 @app.post("/v1/incidents/{iid}/submit")
@@ -390,7 +516,7 @@ async def submit(iid: str):
     if last is not None and last.status == Outcome.QUEUED.value:
         record = last
     else:
-        sub, scheme = _build(iid)
+        sub, scheme = await _build(iid)
         incident = LOCAL.get(iid)
         record = OUTBOUND.record(
             sub, incident_id=iid, tokeniser_scheme=scheme,
@@ -562,14 +688,42 @@ def _core_tls(cfg) -> dict:
     return {"verify": context}
 
 
-def _build(iid: str) -> tuple[IncidentSubmission, str]:
-    """A fresh payload from A3, and the scheme of the tokeniser that produced it."""
+def _custodian_client(custodian) -> httpx.AsyncClient:
+    """
+    The one HTTP client that reaches the key custodians. Tests bind them in-process here.
+
+    Sends only what `oprf_client` hands it, which the request model limits to blinded
+    elements. Authenticates exactly as the core connection does.
+    """
+    return httpx.AsyncClient(timeout=10, **_core_tls(settings()))
+
+
+async def _tokeniser_for(iid: str) -> Tokeniser:
+    """The tokeniser for this incident: fetched first for an OPRF, so A3 stays offline."""
+    cfg = settings()
+    if OPRF_CONFIG is None:
+        return build_tokeniser(cfg.tokeniser)
+    from marsad_connector.crypto.oprf_client import resolve_tokens
+
+    return await resolve_tokens(
+        LOCAL.get(iid).indicators, OPRF_CONFIG, _custodian_client,
+        client_label=cfg.institution_ref,
+    )
+
+
+async def _build(iid: str) -> tuple[IncidentSubmission, str]:
+    """
+    A fresh payload from A3, and the scheme of the tokeniser that produced it.
+
+    An unreachable custodian quorum is a 503 with nothing built and nothing recorded.
+    The incident stays local, so the firm's own work is unaffected and it can retry.
+    """
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
     cfg = settings()
-    tokeniser = build_tokeniser(cfg.tokeniser)
-    agent = RedactionAgent(tokeniser)
     try:
+        tokeniser = await _tokeniser_for(iid)
+        agent = RedactionAgent(tokeniser)
         return agent.build_submission(
             LOCAL.get(iid),
             institution_ref=cfg.institution_ref,
@@ -578,3 +732,6 @@ def _build(iid: str) -> tuple[IncidentSubmission, str]:
         ), tokeniser.scheme
     except RedactionError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except (OprfUnavailable, TokenNotEvaluated) as exc:
+        log.error("connector.tokens_unavailable incident=%s reason=%s", iid, exc)
+        raise HTTPException(503, f"tokens unavailable, nothing was sent: {exc}") from exc

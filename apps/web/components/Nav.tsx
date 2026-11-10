@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, connectors } from "@/lib/api";
+import { api, connectors, consoleToken, setConsoleToken } from "@/lib/api";
 
 const TABS = [
   { href: "/demo", n: "00", label: "Guided demo", hint: "The whole thing, end to end, in ninety seconds" },
   { href: "/", n: "01", label: "Operations", hint: "Watch three firms warn each other, live" },
   { href: "/report", n: "02", label: "Report & guardrails", hint: "File a report and check every deadline" },
   { href: "/exposure", n: "03", label: "Systemic exposure", hint: "Which shared provider is riskiest, in AED" },
+  { href: "/regulator", n: "04", label: "Regulator view", hint: "The market-wide picture, with no firm in it" },
+  { href: "/verify", n: "05", label: "Verify a receipt", hint: "Check a report was anchored and never changed" },
 ];
 
 /** Same three firms as the Operations scenario — display only, read via the existing connector health endpoint. */
@@ -18,6 +20,14 @@ const PARTICIPANTS = ["Al Maha Bank", "Gulf Securities", "Emirates Capital"];
 export function Nav() {
   const path = usePathname();
   const [counts, setCounts] = useState<(number | null)[]>([null, null, null]);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [token, setToken] = useState("");
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    setSignedIn(Boolean(consoleToken()));
+    api.coreHealth().then((h) => setAuthRequired(Boolean(h.console_auth_required))).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +120,31 @@ export function Nav() {
           ))}
         </ul>
       </div>
+
+      {authRequired && (
+        <form
+          className="mt-5 px-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setConsoleToken(signedIn ? null : token);
+            window.location.reload();
+          }}
+        >
+          {!signedIn && (
+            <input
+              type="password"
+              aria-label="Console token"
+              placeholder="Console token"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              className="w-full rounded-[8px] border border-rail-line bg-transparent px-2.5 py-2 text-[14px] text-white"
+            />
+          )}
+          <button type="submit" className="mt-2 w-full rounded-[8px] border border-rail-line px-2.5 py-2 text-[14px] text-rail-text">
+            {signedIn ? "Sign out" : "Sign in"}
+          </button>
+        </form>
+      )}
 
       <div className="mt-auto border-t border-rail-line px-5 py-4">
         <p className="flex items-center gap-2 font-mono text-[11.5px] font-semibold uppercase tracking-[0.08em] text-rail-muted">
