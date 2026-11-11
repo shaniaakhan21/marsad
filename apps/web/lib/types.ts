@@ -116,6 +116,8 @@ export interface ProviderRow extends ConcentrationScore {
 }
 
 export interface ConcentrationReport {
+  /** DECLARED once k firms have declared a provider; ILLUSTRATIVE_SEED until then. */
+  data_basis?: "DECLARED" | "ILLUSTRATIVE_SEED";
   total_participants: number;
   licensed_population: number;
   market_coverage: number;

@@ -1,4 +1,4 @@
-.PHONY: ledger test-ledger install test test-network test-e2e test-boundary test-llm run down demo record lint migrate
+.PHONY: demo-fresh ledger test-ledger install test test-network test-e2e test-boundary test-llm run down demo record lint migrate
 install:
 	pip install -e packages/contracts -e packages/oprf
 	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
@@ -23,6 +23,14 @@ test-boundary:
 # see docs/model-path-results.md for what running it found.
 test-llm:
 	python -m pytest tests/test_llm_live.py -v -m llm
+
+# A clean demo: DELETES every container AND every volume of this stack (all demo
+# incidents, both databases, the test chain), then starts it with the ledger and
+# deploys the contract. Run it before recording or presenting, not on data you keep.
+demo-fresh:
+	docker compose -f docker-compose.yml -f docker-compose.ledger.yml down -v
+	docker compose -f docker-compose.yml -f docker-compose.ledger.yml up -d --build
+	python scripts/deploy_anchor.py
 
 # The permissioned test ledger: three QBFT validators and the anchoring contract.
 ledger:

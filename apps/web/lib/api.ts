@@ -85,7 +85,7 @@ export const api = {
     json<IncidentSubmission>(`${base}/v1/incidents/${id}/preview`, { method: "POST" }),
 
   submit: (base: string, id: string) =>
-    json<{ submitted: boolean; core_response: { correlations: Correlation[] } }>(
+    json<{ submitted: boolean; payload_digest: string; core_response: { correlations: Correlation[] } }>(
       `${base}/v1/incidents/${id}/submit`, { method: "POST" }),
 
   /** Ask the core now whether this firm has been matched, then read what it holds. */

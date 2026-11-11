@@ -228,10 +228,20 @@ export default function ExposurePage() {
               );
             })}
           </div>
-          <p className="mt-3 border-t border-line pt-2 text-[12.5px] leading-relaxed text-text-faint">
-            These vendors are real — Aani, Jaywan and UAESWITCH are national payment rails named in
-            CBUAE reports. Which firm depends on which vendor is our best guess for this demo: only
-            the firms themselves can confirm that, and none has told us yet.
+          <p data-testid="register-basis" className="mt-3 border-t border-line pt-2 text-[12.5px] leading-relaxed text-text-faint">
+            {rep.data_basis === "DECLARED" ? (
+              <>
+                Built from what firms declared. Each firm sent only a token of its supplier&apos;s
+                domain; a supplier is named here because it enrolled itself, and only once at
+                least three firms declared it. The demo supplier is fictional.
+              </>
+            ) : (
+              <>
+                Illustrative: no supplier has been declared by three firms yet. These vendors are
+                real — Aani, Jaywan and UAESWITCH are national payment rails named in CBUAE
+                reports — but which firm depends on which is our best guess for this demo.
+              </>
+            )}
           </p>
         </Panel>
 

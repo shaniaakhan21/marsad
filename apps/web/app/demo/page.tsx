@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { api, connectors } from "@/lib/api";
-import type { Correlation, IncidentSubmission, SupervisorReport } from "@/lib/types";
+import { api, connectors, vendorConnector } from "@/lib/api";
+import type { Correlation, IncidentSubmission, PeerNotice, ReceiptProof, SupervisorReport } from "@/lib/types";
 import { BoundaryIndicator, WhatTheCoreSees, type LocalFacts } from "@/components/Boundary";
 import { ActionButton, PageHeader } from "@/components/PageHeader";
 import { Panel } from "@/components/Panel";
@@ -10,10 +10,12 @@ import { Panel } from "@/components/Panel";
 /**
  * The scripted demo.
  *
- * Six beats, run end to end against the real services with no narration needed: an
+ * Nine beats, run end to end against the real services with no narration needed: an
  * English incident, a related Arabic one, a correlation that fires on shared
  * tradecraft despite rotated infrastructure, the k-anonymity gate holding, systemic
- * exposure priced in AED, and an injection attempt visibly quarantined.
+ * exposure priced in AED, an injection attempt visibly quarantined, the first firm
+ * learning afterwards that it was not alone, a supplier warning every firm that relies
+ * on it, and a receipt checked against the audit ledger.
  *
  * Every step is a real call to a real connector. Nothing here is mocked, and the
  * boundary indicator is derived from the payload that was actually sent — so what a
@@ -23,8 +25,9 @@ import { Panel } from "@/components/Panel";
 type StepState = "idle" | "running" | "done";
 
 const AR_NARRATIVE =
-  "رصد فريق الأمن رسالة تصيد استهدفت منصة التداول في 2026-08-19 09:00 UTC من النطاق " +
-  "gulfsec-rotated.com. تم إرسال بيانات الدخول. الأثر: عالي.";
+  "رصد فريق الأمن رسالة تصيد تنتحل صفة بوابة الدخول الموحد، وفيها رابط احتيالي إلى النطاق " +
+  "gulfsec-rotated.com، استهدفت منصة التداول في 2026-08-19 09:00 UTC. تم إرسال بيانات الدخول. " +
+  "الأثر: عالي.";
 
 const EN_NARRATIVE =
   "Finance staff received a credential-harvesting email impersonating the internal SSO " +
@@ -47,7 +50,15 @@ const STEPS = [
   { n: 4, title: "The k-anonymity gate holds", sub: "two firms is not enough to publish" },
   { n: 5, title: "Systemic exposure, in AED", sub: "which shared provider is riskiest" },
   { n: 6, title: "An injection is quarantined", sub: "and the incident is not downgraded" },
+  { n: 7, title: "The first firm is warned", sub: "after it filed, when a peer matched" },
+  { n: 8, title: "A supplier is hit", sub: "it reports once; every dependent hears" },
+  { n: 9, title: "The receipt is checked", sub: "anchored, and unchanged since" },
 ] as const;
+
+const SUPPLIER = { name: "Demo KYC provider (fictional)", domain: "kyc-vendor.example", substitutability: "NO" };
+
+/** How long step 9 waits for the anchoring loop before showing the receipt as pending. */
+const RECEIPT_WAIT_MS = 20_000;
 
 export default function DemoPage() {
   const [step, setStep] = useState(0);
@@ -60,8 +71,15 @@ export default function DemoPage() {
   const [arPayload, setArPayload] = useState<IncidentSubmission | null>(null);
   const [showArabic, setShowArabic] = useState(false);
   const [corr, setCorr] = useState<Correlation[]>([]);
-  const [exposure, setExposure] = useState<{ provider: string; aed: number; band: string } | null>(null);
+  const [exposure, setExposure] = useState<
+    { provider: string; aed: number; band: string; illustrative: boolean } | null
+  >(null);
   const [sup, setSup] = useState<SupervisorReport | null>(null);
+  const [warning, setWarning] = useState<PeerNotice | null | undefined>(undefined);
+  const [supplier, setSupplier] = useState<
+    { notified: number; alert: string | null } | { unavailable: string } | null
+  >(null);
+  const [receipt, setReceipt] = useState<{ digest: string; proof: ReceiptProof | null } | null>(null);
 
   const cancelled = useRef(false);
 
@@ -92,7 +110,7 @@ export default function DemoPage() {
       jurisdictions: ["CBUAE", "CMA"],
     });
     const payload = await api.preview(base, confirmed.incident_id);
-    await api.submit(base, confirmed.incident_id);
+    const sent = await api.submit(base, confirmed.incident_id);
 
     const spans = Object.values(draft.fields).filter((f) => f.span !== null).length;
     const local: LocalFacts = {
@@ -102,15 +120,19 @@ export default function DemoPage() {
       thirdParties: (draft.fields.third_party_dependencies.value as string[]) ?? [],
       evidenceSpans: spans,
     };
-    return { local, payload };
+    return { local, payload, digest: sent.payload_digest };
   }, []);
 
   async function run() {
     cancelled.current = false;
+    // Only what this run produced. A core that has been running for days holds every
+    // earlier match too, and a reviewer should see this run, not the history.
+    const startedAt = Date.now() - 2000;
     setErr(null);
     setState("running");
     setEnLocal(null); setEnPayload(null); setArLocal(null); setArPayload(null);
     setCorr([]); setExposure(null); setSup(null); setShowArabic(false);
+    setWarning(undefined); setSupplier(null); setReceipt(null);
 
     try {
       // 1 — English incident
@@ -130,7 +152,8 @@ export default function DemoPage() {
 
       // 3 — the correlation
       setStep(3);
-      setCorr(await api.correlations());
+      setCorr((await api.correlations()).filter(
+        (c) => !c.detected_at || Date.parse(c.detected_at) >= startedAt));
       await pause(2600);
       if (cancelled.current) return;
 
@@ -148,6 +171,7 @@ export default function DemoPage() {
           provider: worst.provider,
           aed: worst.exposure.daily_traded_value_at_risk_aed_bn,
           band: worst.band,
+          illustrative: concentration.data_basis !== "DECLARED",
         });
       }
       await pause(2600);
@@ -163,6 +187,47 @@ export default function DemoPage() {
         severity: "HIGH",
       });
       setSup(supervisor ?? (await api.supervise(connectors[2], incident_id)));
+      await pause(2600);
+      if (cancelled.current) return;
+
+      // 7 — the first firm, which filed before anyone matched it, collects its warning
+      setStep(7);
+      await api.collectNotices(connectors[0]);
+      const held = await api.notices(connectors[0]);
+      setWarning(held[0] ?? null);
+      await pause(2600);
+      if (cancelled.current) return;
+
+      // 8 — a supplier all three firms rely on reports an incident, once
+      setStep(8);
+      try {
+        for (const base of connectors) {
+          await api.saveDependencies(base, [SUPPLIER]);
+          await api.publishDependencies(base, "demo.analyst");
+        }
+        const reply = await api.declareProviderIncident(vendorConnector, "HIGH", "vendor.analyst");
+        await api.collectNotices(connectors[0]);
+        const alerts = await api.providerAlerts(connectors[0]);
+        setSupplier({
+          notified: reply.core_response.dependents_notified,
+          alert: alerts[0] ? `${alerts[0].provider} reported a ${alerts[0].severity_band} incident.` : null,
+        });
+      } catch (e) {
+        // Said on screen rather than skipped silently: this environment has no supplier.
+        setSupplier({ unavailable: e instanceof Error ? e.message : String(e) });
+      }
+      await pause(2600);
+      if (cancelled.current) return;
+
+      // 9 — Al Maha's receipt, checked against the ledger
+      setStep(9);
+      let proof: ReceiptProof | null = null;
+      for (let waited = 0; waited <= RECEIPT_WAIT_MS; waited += 2000) {
+        try { proof = await api.receiptProof(en.digest); } catch { proof = null; }
+        setReceipt({ digest: en.digest, proof });
+        if (proof?.status === "ANCHORED" || cancelled.current) break;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
       setState("done");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -177,7 +242,7 @@ export default function DemoPage() {
     <main>
       <PageHeader
         eyebrow="00 · Guided demo"
-        title="Ninety seconds, end to end."
+        title="Two minutes, end to end."
         lede={
           <>
             <p>Two firms, two languages, one attacker — and nothing sensitive crossing.</p>
@@ -190,7 +255,7 @@ export default function DemoPage() {
         }
         actions={
           <ActionButton onClick={run} disabled={state === "running"}>
-            {state === "running" ? `Running… step ${step} of 6` : "▶ Run the guided demo"}
+            {state === "running" ? `Running… step ${step} of ${STEPS.length}` : "▶ Run the guided demo"}
           </ActionButton>
         }
       />
@@ -220,7 +285,7 @@ export default function DemoPage() {
         )}
 
         {/* step rail */}
-        <div className="grid gap-2 md:grid-cols-6" data-testid="step-rail">
+        <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-9" data-testid="step-rail">
           {STEPS.map((s) => (
             <div
               key={s.n}
@@ -330,6 +395,12 @@ export default function DemoPage() {
                 through published CBUAE and CMA market figures, and the two independent sources
                 for daily traded value reconcile within 2%.
               </p>
+              {exposure.illustrative && (
+                <p className="mt-1.5 text-[12.5px] font-semibold text-band-high" data-testid="exposure-illustrative">
+                  Illustrative: no supplier has yet been declared by three firms, so which firm
+                  depends on which provider is a demo assumption. Step 8 shows firms declaring.
+                </p>
+              )}
             </div>
           </Panel>
         )}
@@ -363,13 +434,73 @@ export default function DemoPage() {
           </Panel>
         )}
 
+        {/* 7 — the first firm learns it was not alone */}
+        {active(7) && warning !== undefined && (
+          <Panel label="Step 7 — the first firm to report is warned afterwards">
+            <div data-testid="first-firm-warned" className="rounded-[10px] border border-band-low/40 bg-band-low/10 p-3">
+              <p className="font-mono text-[13px] font-bold tracking-wide text-band-low">
+                {warning ? `◆ WARNED: ${warning.peer_count} OTHER FIRM${warning.peer_count === 1 ? "" : "S"} SEEING THIS` : "◆ NO WARNING YET"}
+              </p>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-text-secondary">
+                Al Maha Bank filed first, when nobody had matched it. The core may not call into a
+                firm, so the connector asks for its own warnings. It learns how many peers matched,
+                never which.
+              </p>
+            </div>
+          </Panel>
+        )}
+
+        {/* 8 — supplier */}
+        {active(8) && supplier && (
+          <Panel label="Step 8 — a supplier is hit, and reports it once">
+            <div data-testid="supplier" className="rounded-[10px] border border-band-high/40 bg-band-high/10 p-3">
+              {"unavailable" in supplier ? (
+                <p className="text-[13.5px] text-text-secondary">
+                  No supplier connector is running in this environment, so this step was not run.
+                  Start the full stack with <code className="font-mono">make run</code>.
+                </p>
+              ) : (
+                <>
+                  <p className="font-mono text-[13px] font-bold tracking-wide text-band-high">
+                    ◆ {supplier.notified} FIRMS WARNED
+                  </p>
+                  <p className="mt-1.5 text-[13.5px] text-text-primary">{supplier.alert ?? "Alert not collected yet."}</p>
+                  <p className="mt-1.5 text-[12.5px] leading-relaxed text-text-secondary">
+                    Each firm declared the supplier by a token of its domain; the name never left
+                    the firm. The supplier learned only how many firms rely on it.
+                  </p>
+                </>
+              )}
+            </div>
+          </Panel>
+        )}
+
+        {/* 9 — receipt */}
+        {active(9) && receipt && (
+          <Panel label="Step 9 — Al Maha's receipt, checked against the ledger">
+            <div data-testid="receipt" className="rounded-[10px] border border-line bg-panel2/40 p-3">
+              <p className="break-all font-mono text-[12px] text-text-faint">{receipt.digest}</p>
+              <p className={`mt-1.5 font-mono text-[13px] font-bold tracking-wide ${receipt.proof?.verified ? "text-band-low" : "text-band-mid"}`}>
+                {receipt.proof?.verified
+                  ? `◆ VERIFIED · ${receipt.proof.ledger?.backend ?? "ledger"}, block ${receipt.proof.ledger?.block}`
+                  : "◆ RECEIVED · WAITING FOR THE NEXT ANCHORING ROUND"}
+              </p>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-text-secondary">
+                Only this hash is anchored, never the report. Anyone holding it can check on the
+                Verify page that the stored record has not changed since.
+                {receipt.proof?.ledger?.reduced_fidelity && " This environment uses the test hash chain, not the independent ledger."}
+              </p>
+            </div>
+          </Panel>
+        )}
+
         {state === "done" && (
           <p className="rounded-[14px] border border-band-low/40 bg-band-low/[0.06] p-3 text-[13.5px] leading-relaxed text-text-primary"
              data-testid="demo-complete">
-            <span className="font-mono font-bold text-band-low">◆ COMPLETE.</span> Two firms warned
-            each other about one attacker, across two languages and rotated infrastructure — and
-            the only thing that crossed either boundary was a list of hashes, a set of public
-            technique identifiers, and a timestamp rounded to the hour.
+            <span className="font-mono font-bold text-band-low">◆ COMPLETE.</span> Firms warned each
+            other about one attacker, across two languages and rotated infrastructure, and a
+            supplier warned every firm that relies on it. What crossed any boundary was hashes,
+            public technique identifiers, bands and a timestamp rounded to the hour.
           </p>
         )}
       </div>

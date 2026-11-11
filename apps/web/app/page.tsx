@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, connectors } from "@/lib/api";
 import type { Correlation, IncidentSubmission, PeerNotice } from "@/lib/types";
 import { ActionButton, PageHeader } from "@/components/PageHeader";
@@ -76,6 +76,10 @@ export default function Home() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
+  // Set when the demo runs, so the list shows that run rather than every match the core
+  // has ever stored. Before any run, the most recent few are shown instead.
+  const since = useRef<number | null>(null);
+
   const refresh = useCallback(async () => {
     const next: Record<string, string> = {};
     await Promise.all(
@@ -89,12 +93,20 @@ export default function Home() {
       }),
     );
     setHealth(next);
-    try { setCorr(await api.correlations()); } catch { /* core down */ }
+    try {
+      const all = (await api.correlations())
+        .slice()
+        .sort((a, b) => Date.parse(b.detected_at ?? "") - Date.parse(a.detected_at ?? ""));
+      setCorr(since.current === null
+        ? all.slice(0, 6)
+        : all.filter((c) => !c.detected_at || Date.parse(c.detected_at) >= since.current!));
+    } catch { /* core down */ }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
   async function run() {
+    since.current = Date.now() - 2000;
     setBusy(true); setErr(null); setPayloads([]);
     try {
       for (let i = 0; i < SCENARIO.length; i++) {

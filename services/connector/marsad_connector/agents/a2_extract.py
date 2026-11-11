@@ -795,6 +795,11 @@ AR_SERVICE_CUES: tuple[tuple[str, str], ...] = (
 
 AR_TECHNIQUE_CUES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("T1566", ("تصيد", "التصيد", "بريد احتيالي", "رساله احتياليه")),
+    # The English rules already split out a phishing link and impersonation. Without
+    # these, the same attack written in Arabic yielded only the parent technique and
+    # could never match its English report: zero overlap, no correlation, no error.
+    ("T1566.002", ("رابط تصيد", "رابط احتيالي", "صفحه دخول مزيفه", "بوابه دخول مزيفه")),
+    ("T1656", ("انتحال", "تنتحل", "ينتحل", "انتحل")),
     ("T1078", ("بيانات اعتماد صحيحه", "حساب شرعي", "بيانات دخول مسروقه")),
     ("T1114", ("اعاده توجيه البريد", "قاعده توجيه", "تجميع البريد")),
     ("T1486", ("تشفير الملفات", "تشفير الانظمه", "فديه")),
@@ -831,8 +836,11 @@ _AR_TO_BAND = {w: band for band, words in AR_SEVERITY_WORDS.items() for w in wor
 #: occur inside ordinary words as letter sequences — "لم" sits inside "المالية" and
 #: "المعلومات" — so an unbounded match reads almost every Arabic sentence as negated
 #: and silently drops its cues. This is the Arabic equivalent of a word boundary.
+#: The conjunctions و ("and") and ف ("so") attach to the next word, so "and no" is
+#: written "ولم" as one word. Without allowing them, "ولم يتم انتحال" (and there was no
+#: impersonation) read as impersonation.
 _AR_NEGATION_RE = re.compile(
-    r"(?<![ؠ-ي])(?:" + _ar_alt(AR_NEGATION) + r")(?![ؠ-ي])"
+    r"(?<![ؠ-ي])[وف]?(?:" + _ar_alt(AR_NEGATION) + r")(?![ؠ-ي])"
 )
 
 #: Latin-script names only. Vendor names in Gulf incident reports are written in
