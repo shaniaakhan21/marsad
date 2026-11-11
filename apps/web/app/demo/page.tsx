@@ -55,7 +55,7 @@ const STEPS = [
   { n: 9, title: "The receipt is checked", sub: "anchored, and unchanged since" },
 ] as const;
 
-const SUPPLIER = { name: "Demo KYC provider (fictional)", domain: "kyc-vendor.example", substitutability: "NO" };
+const SUPPLIER = { name: "Shared KYC vendor", domain: "kyc-vendor.example", substitutability: "NO" };
 
 /** How long step 9 waits for the anchoring loop before showing the receipt as pending. */
 const RECEIPT_WAIT_MS = 20_000;

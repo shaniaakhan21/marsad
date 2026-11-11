@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Panel } from "@/components/Panel";
 
 const FIRMS = ["Al Maha Bank", "Gulf Securities", "Emirates Capital"];
-const PROVIDER = { name: "Demo KYC provider (fictional)", domain: "kyc-vendor.example", substitutability: "NO" };
+const PROVIDER = { name: "Shared KYC vendor", domain: "kyc-vendor.example", substitutability: "NO" };
 
 type Alert = { provider: string; severity_band: string; ts_bucket: string };
 

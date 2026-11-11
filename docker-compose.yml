@@ -72,7 +72,7 @@ services:
       MARSAD_CORE_STORE: sql
       # One fictional provider, enrolled for the demo. Its token is computed under the
       # dev-only key shares above, so it changes if those shares are regenerated.
-      MARSAD_CORE_PROVIDER_DIRECTORY: '{"000000019c65910c7e0082a6cec3a3eb38bac4a4":{"name":"Demo KYC provider (fictional)","service":"Onboarding identity checks","market_activity_share":0.22,"owner_ref":"psd_vendor01"}}'
+      MARSAD_CORE_PROVIDER_DIRECTORY: '{"000000019c65910c7e0082a6cec3a3eb38bac4a4":{"name":"Shared KYC vendor","service":"Onboarding identity checks","market_activity_share":0.22,"owner_ref":"psd_vendor01"}}'
       # Short so a demo shows a receipt being anchored. Local chain until Besu is enabled.
       MARSAD_CORE_ANCHOR_INTERVAL_SECONDS: "20"
       MARSAD_CORE_AUTO_CREATE_SCHEMA: "false"
@@ -280,7 +280,7 @@ services:
     build: { context: ., dockerfile: services/connector/Dockerfile }
     environment:
       <<: *oprf
-      MARSAD_INSTITUTION_NAME: "Demo KYC provider"
+      MARSAD_INSTITUTION_NAME: "Shared KYC vendor"
       MARSAD_INSTITUTION_REF: "psd_vendor01"
       MARSAD_SECTOR: PROVIDER
       MARSAD_SIZE_BAND: MID
