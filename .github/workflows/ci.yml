@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libsodium23
           pip install -e packages/contracts -e packages/oprf
           pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx \
-                      sqlalchemy "psycopg[binary]" alembic openpyxl pytest ruff
+                      sqlalchemy "psycopg[binary]" alembic openpyxl pytest "ruff==0.16.5"
           # The oracle the vendored Arabic normalisation is checked against, codepoint
           # by codepoint. A test dependency only — never in the connector image.
           pip install "camel-tools>=1.5"
@@ -60,10 +60,12 @@ jobs:
           (cd services/connector && MARSAD_DATABASE_URL=sqlite:////tmp/ci_edge.db \
              alembic upgrade head)
 
-      # The repo does not lint clean; the rule is a ratchet, not a gate.
+      # The repo does not lint clean; the rule is a ratchet, not a gate. ruff is pinned
+      # above: a count only means something against the same linter, and an unpinned
+      # ruff added rules under the baseline and failed main for months with no code change.
       - name: Lint ratchet (must not exceed the recorded baseline)
         run: |
-          BASELINE=30
+          BASELINE=26
           COUNT=$(ruff check packages services tests --output-format=concise | grep -c ':' || true)
           echo "ruff findings: $COUNT (baseline $BASELINE)"
           if [ "$COUNT" -gt "$BASELINE" ]; then

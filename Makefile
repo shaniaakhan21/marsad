@@ -2,7 +2,7 @@
 install:
 	pip install -e packages/contracts -e packages/oprf
 	pip install fastapi "uvicorn[standard]" pydantic pydantic-settings httpx sqlalchemy \
-	  "psycopg[binary]" alembic openpyxl pytest ruff "web3>=7"
+	  "psycopg[binary]" alembic openpyxl pytest "ruff==0.16.5" "web3>=7"
 	# The oracle for the vendored Arabic normalisation. A test dependency only — it is
 	# never installed in the connector image. See services/connector/pyproject.toml.
 	pip install "camel-tools>=1.5"
