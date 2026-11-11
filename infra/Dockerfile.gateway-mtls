@@ -1,0 +1,4 @@
+# The mutual-TLS variant of the boundary gateway. Config baked in for the same reason as
+# Dockerfile.gateway; only the certificates are mounted, because they are per-deployment.
+FROM nginx:1.27-alpine
+COPY infra/boundary-gateway.mtls.conf /etc/nginx/conf.d/default.conf

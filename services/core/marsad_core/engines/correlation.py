@@ -12,6 +12,7 @@ identifies a firm by elimination is a disclosure even when no field was shared.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from collections import defaultdict
@@ -58,6 +59,21 @@ class CorrelationHit:
     #: submissions — zipping them pairs a submission with the wrong firm. Only the
     #: engine knows which firm sent which submission, so it states it here.
     members: tuple[tuple[str, str], ...] = ()
+
+    #: Stable across restarts, so a firm collecting notices repeatedly sees one notice
+    #: per match. Never served directly; see `notice_id`.
+    correlation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+
+
+def notice_id(hit: CorrelationHit, institution_ref: str) -> str:
+    """
+    This firm's id for this match: stable for the firm, different for every other firm.
+
+    A shared id would be a handle two competitors could compare to discover they were
+    party to the same match, which is exactly what a rung-0 notice must not tell them.
+    """
+    material = f"{hit.correlation_id}:{institution_ref}".encode()
+    return hashlib.sha256(material).hexdigest()[:32]
 
 
 class CorrelationEngine:
@@ -193,7 +209,7 @@ class CorrelationEngine:
         notices: list[tuple[str, CorrelationNotice]] = []
         for ref in hit.institution_refs:
             notices.append((ref, CorrelationNotice(
-                correlation_id=str(uuid.uuid4()),
+                correlation_id=notice_id(hit, ref),
                 kind=hit.kind,
                 peer_count=len(hit.institution_refs) - 1,
                 indicator_type=hit.indicator_type,

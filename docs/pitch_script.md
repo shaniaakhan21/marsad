@@ -1,19 +1,25 @@
 # MARSAD — 5-Minute Pitch Script and Q&A Preparation
 
-**UAE Hackathon 2026 · Day 3 · 5-minute pitch + 3 minutes of questions**
+**UAE Hackathon 2026 · Demo Day · 5-minute pitch + 3 minutes of questions**
+
+*Updated for Demo Day (12 November 2026). Section headings name the topic rather than a slide
+number, so the script follows whichever deck you present.*
 
 > **How to use this.** Timings are cumulative and assume an unhurried pace. The
 > script is written to be *spoken*, not read — short sentences, one idea each. If
-> you are running long, cut Slide 6 (market) to a single sentence; never cut
-> Slide 4 (the live demo) or Slide 7 (honest scope), because those are what make
+> you are running long, cut the market and the 90 days to a single sentence; never cut the live demo,
+> what is built, or the honest scope, because those are what make
 > the rest believable.
 >
 > **Rehearse the demo once before you present.** Have the dashboard already open on
-> the Operations tab, with the stack running, before you say a word.
+> the Report & guardrails tab, with the stack started from empty (`make demo-fresh`),
+> before you say a word. Stop any other app on port 8000 first. Beat 4 shows the
+> AED 1.02 bn figure only while no firm has declared a supplier, so leave the Shared
+> providers tab for after the demo, or for questions.
 
 ---
 
-## Slide 1 · The problem (0:00 – 0:45)
+## The problem (0:00 – 0:45)
 
 > Right now, if three UAE financial institutions are hit by the same attacker, all
 > three investigate alone. Each one rediscovers the same attacker infrastructure.
@@ -32,7 +38,7 @@
 
 ---
 
-## Slide 2 · The idea in one sentence (0:45 – 1:15)
+## The idea in one sentence (0:45 – 1:15)
 
 > MARSAD lets competing institutions discover they're under attack by the same
 > adversary — without either of them disclosing a single incident detail to the
@@ -48,7 +54,7 @@
 
 ---
 
-## Slide 3 · What a firm buys on day one (1:15 – 2:00)
+## What a firm buys on day one (1:15 – 2:00)
 
 > Here's the commercial problem with every sharing platform ever built: it's
 > worthless at one customer. Nobody goes first.
@@ -69,7 +75,7 @@
 
 ---
 
-## Slide 4 · Live demo (2:00 – 3:30) — *the most important 90 seconds*
+## Live demo (2:00 – 3:30) — *the most important 90 seconds*
 
 **Beat 1 — the injection (2:00 – 2:40).** *Report & guardrails tab. Click "File the incident".*
 
@@ -120,7 +126,18 @@
 
 ---
 
-## Slide 5 · Real government data doing real work (3:30 – 4:00)
+## Built since the hackathon (3:30 – 4:00)
+
+> Everything we told you at the hackathon was "designed" is now built and tested.
+> Tokens come from a split key: three custodians, any two needed, and no single party,
+> including us, can make or reverse one. Every report's fingerprint is anchored on a
+> three-node blockchain, so a record edited afterwards fails its proof. And the first
+> firm to report is now warned when peers report the same attacker later, while a
+> supplier that is hit warns every firm that relies on it, once.
+
+---
+
+## Real government data doing real work (4:00 – 4:15)
 
 > Two places open data isn't decoration.
 >
@@ -138,7 +155,7 @@
 
 ---
 
-## Slide 6 · Market and the 90 days (4:00 – 4:35)
+## The 90 days and the market (4:15 – 4:35)
 
 > 305 firms where this is already a live supervisory expectation — 244 CMA-licensed
 > plus 61 banks. Three buyers: institutions buy avoided breach exposure, providers
@@ -157,21 +174,21 @@
 
 ---
 
-## Slide 7 · Honest scope and close (4:35 – 5:00)
+## Honest scope and close (4:35 – 5:00)
 
-> One thing I want to be straight about. Our tokenisation is a keyed hash right now,
-> not the production cryptography. IP addresses are low-entropy — four billion
-> values — so whoever holds that shared key could enumerate them. That's exactly the
-> position we promise nobody occupies. It's a day-40 milestone, the interface for it
-> already exists in the code, and until it's done this doesn't touch real
-> institutional data.
+> One thing I want to be straight about. The split-key cryptography is built and
+> passes the standard's own test vectors, but nobody independent has reviewed it yet.
+> That review, and a penetration test, come before any real institutional data. The
+> key shares are still created in one setup step and held in software; generating them
+> without anyone ever holding the whole key, and moving them to hardware, are next.
 >
 > We'd rather tell you that than have you find it.
 >
 > What's real today: the privacy boundary is a typed contract that structurally
 > cannot carry narrative. Five authorities resolved from one filing. The injection
-> caught. Correlation working, including against a rotated attacker. Concentration
-> in dirhams. 77 tests, each one encoding a claim we're making to you right now.
+> caught. Correlation working, including against a rotated attacker. Split-key tokens,
+> a tamper-evident ledger, and warnings that reach every affected firm. 812 tests,
+> each one encoding a claim we're making to you right now.
 >
 > Detected together, defended together — and not one institution disclosed a single
 > incident detail to a competitor.
@@ -185,13 +202,24 @@ defensiveness. If you don't know, say you don't know and say what would settle i
 
 ### "Isn't a hash reversible? Why should we trust this?"
 
-> Yes — and that's the real weakness, so let me be precise. There are only about
-> four billion possible IP addresses, so anyone holding our shared key could hash
-> them all and build a lookup table. That's why the prototype isn't for real data.
-> The production version is an OPRF: no single party ever holds the key, it's split
-> across three custodians in hardware modules, and the evaluator never sees the
-> indicator. It's day 40, and the interface is already in the code — it's a
-> swappable block, not a rewrite.
+> A plain hash would be: there are only about four billion IP addresses, so anyone
+> holding the key could hash them all. That's why we replaced it. Tokens now come
+> from an OPRF with the key split three ways: any two custodians are needed, none can
+> do it alone, and the custodians never see the indicator. Guessing online is capped
+> by a daily budget, and every evaluation is logged. It reproduces the RFC's test
+> vectors byte for byte; what it hasn't had yet is an independent review.
+
+### "Who holds the keys?"
+
+> We propose CMA, the UAE Cybersecurity Council and a rotating participating firm,
+> one share each. Today the three shares run on one machine for the demo, which makes
+> them one party in practice. In a pilot each sits with a different organisation.
+
+### "Could an operator quietly change a report afterwards?"
+
+> Not without it showing. Every report's fingerprint is batched into a Merkle root and
+> written to a three-node Besu network. We tested it: edit a stored record directly in
+> the database, and its proof fails and says which check failed.
 
 ### "Where is the AI? You said fourteen agents and I've seen two."
 
@@ -259,5 +287,6 @@ defensiveness. If you don't know, say you don't know and say what would settle i
 - [ ] Stack running: core, at least one connector, dashboard — **verified, not assumed**
 - [ ] Browser open on Operations, other tabs pre-loaded in adjacent tabs
 - [ ] Screenshots on disk as a fallback in case the live demo fails
-- [ ] Know your three numbers cold: **AED 1.02 bn**, **5 authorities**, **77 tests**
+- [ ] Know your three numbers cold: **AED 1.02 bn**, **5 authorities**, **812 tests**
+- [ ] Run `make demo-fresh` before you present, so the demo starts from empty data
 - [ ] Practise the honest-scope paragraph out loud — it should sound confident, not apologetic

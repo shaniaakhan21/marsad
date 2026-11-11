@@ -68,6 +68,9 @@ class LocalIncident(EdgeBase):
     analyst_notes: Mapped[str | None] = mapped_column(sa.Text, default=None)
     #: Attacker-authored. The hostile channel A14 inspects as data, never instruction.
     raw_email: Mapped[str | None] = mapped_column(sa.Text, default=None)
+    #: Names of the firm's own systems, from the impact assessment. On the never-cross
+    #: list, and analyst-written, so it expires with the rest of the free text.
+    systems_affected: Mapped[list[str] | None] = mapped_column(sa.JSON, default=None)
 
     # -- structural: kept --------------------------------------------------
     indicators: Mapped[list[dict[str, Any]]] = mapped_column(sa.JSON, default=list)
@@ -84,6 +87,9 @@ class LocalIncident(EdgeBase):
     jurisdictions: Mapped[list[str]] = mapped_column(sa.JSON, default=list)
     essential_service_affected: Mapped[bool | None] = mapped_column(sa.Boolean, default=None)
     submitted_submission_id: Mapped[str | None] = mapped_column(sa.String(64), default=None)
+    #: Banded loss, customers and downtime, and who assessed them. For the firm's own
+    #: report only: A3 does not read this and the boundary contract cannot carry it.
+    impact: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, default=None)
 
     # -- provenance of the incident itself ---------------------------------
     #: "ANALYST_STRUCTURED" or "EXTRACTION_CONFIRMED". There is deliberately no third
@@ -213,6 +219,96 @@ class SubmissionAttempt(EdgeBase):
     submission: Mapped[OutboundSubmission] = relationship(back_populates="attempts")
 
 
+class RetentionRun(EdgeBase):
+    """
+    One execution of the retention purge, and what it did.
+
+    The evidence that the policy is carried out, for the auditor who asks. Counts and
+    timestamps only: a log of what was deleted that quoted it would keep it.
+    """
+
+    __tablename__ = "retention_runs"
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    ran_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow, index=True)
+    retention_days: Mapped[int] = mapped_column(sa.Integer)
+    incidents_redacted: Mapped[int] = mapped_column(sa.Integer, default=0)
+    provenance_rows_deleted: Mapped[int] = mapped_column(sa.Integer, default=0)
+    #: COMPLETED or FAILED. A failed run is recorded, so a gap reads as a failure rather
+    #: than as nothing having been due.
+    status: Mapped[str] = mapped_column(sa.String(16), default="COMPLETED")
+
+
+class ReceivedNotice(EdgeBase):
+    """
+    A match the core told this firm about. Rung 0: how many peers, never which.
+
+    Kept with the record of what left, because "when were we warned?" is a question an
+    auditor asks long after the narrative has expired. Written by the core's wording of
+    the facts, not by an analyst, and it holds no free text.
+    """
+
+    __tablename__ = "received_notices"
+
+    notice_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(sa.String(32))
+    peer_count: Mapped[int] = mapped_column(sa.Integer)
+    indicator_type: Mapped[str | None] = mapped_column(sa.String(16), default=None)
+    shared_techniques: Mapped[list[str]] = mapped_column(sa.JSON, default=list)
+    similarity: Mapped[float | None] = mapped_column(sa.Float, default=None)
+    campaign_id: Mapped[str | None] = mapped_column(sa.String(64), default=None)
+    detected_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+    received_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
+class ProviderDependencyRow(EdgeBase):
+    """
+    A provider this firm relies on. The name and domain exist here and nowhere else;
+    only a token of the domain ever crosses.
+    """
+
+    __tablename__ = "provider_dependencies"
+
+    domain: Mapped[str] = mapped_column(sa.String(253), primary_key=True)
+    name: Mapped[str] = mapped_column(sa.String(200))
+    substitutability: Mapped[str] = mapped_column(sa.String(16))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
+class OutboundDeclaration(EdgeBase):
+    """
+    A declaration this firm sent or is about to send, recorded before it leaves.
+
+    The same rule as a submission: there is no moment at which something has crossed and
+    no record of it exists. QUEUED means it may not have arrived, and it is resent as is.
+    """
+
+    __tablename__ = "outbound_declarations"
+
+    declaration_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(sa.String(32))
+    payload: Mapped[dict[str, Any]] = mapped_column(sa.JSON)
+    payload_digest: Mapped[str] = mapped_column(sa.String(64))
+    tokeniser_scheme: Mapped[str] = mapped_column(sa.String(64))
+    declared_by: Mapped[str] = mapped_column(sa.String(128))
+    built_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+    status: Mapped[str] = mapped_column(sa.String(16), default="QUEUED")
+    http_status: Mapped[int | None] = mapped_column(sa.Integer, default=None)
+    core_digest: Mapped[str | None] = mapped_column(sa.String(64), default=None)
+
+
+class ReceivedProviderAlert(EdgeBase):
+    """A provider this firm declared has reported an incident."""
+
+    __tablename__ = "received_provider_alerts"
+
+    alert_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    provider_token: Mapped[str] = mapped_column(sa.String(64))
+    severity_band: Mapped[str] = mapped_column(sa.String(16))
+    ts_bucket: Mapped[datetime] = mapped_column(UtcDateTime)
+    received_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
 def expiry_for(created_at: datetime, retention_days: int) -> datetime:
     """The one place a retention deadline is computed. Arithmetic, not judgement."""
     if created_at.tzinfo is None:
@@ -221,6 +317,8 @@ def expiry_for(created_at: datetime, retention_days: int) -> datetime:
 
 
 __all__ = [
-    "ExtractionProvenance", "LocalIncident", "OutboundSubmission", "SubmissionAttempt",
+    "ExtractionProvenance", "LocalIncident", "OutboundDeclaration", "OutboundSubmission", "ProviderDependencyRow",
+    "ReceivedNotice", "ReceivedProviderAlert", "RetentionRun",
+    "SubmissionAttempt",
     "expiry_for",
 ]

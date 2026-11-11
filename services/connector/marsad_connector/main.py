@@ -2,31 +2,55 @@
 MARSAD connector — runs inside an institution's perimeter.
 
 This process is the only one that ever holds narrative, plaintext indicators or
-PII. It reaches the core through exactly one function, `_deliver`, which sends only
-an IncidentSubmission that A3 built, that was recorded before it left, and that A3
-has re-checked against that record.
+PII. Exactly one function, `_deliver`, sends the core anything about an incident, and
+it sends only an IncidentSubmission that A3 built, that was recorded before it left, and
+that A3 has re-checked against that record. `_deliver_declaration` does the same for a
+provider declaration, which carries tokens and closed vocabularies. `collect_notices` is
+the one other call to the core: a read carrying a pseudonym and a timestamp.
 """
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import hmac
 import logging
 import ssl
 import uuid
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from marsad_contracts.boundary import IncidentSubmission, Sector, SizeBand
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse
+from marsad_contracts.boundary import (
+    CorrelationNotice,
+    IncidentSubmission,
+    ProviderAlert,
+    Sector,
+    SeverityBand,
+    SizeBand,
+    SubstitutabilityBand,
+)
+from marsad_contracts.digest import payload_digest
+from pydantic import BaseModel, Field, ValidationError
 
 from marsad_connector.agents.a2_extract import ExtractionAgent, ExtractionDraft
 from marsad_connector.agents.a3_redact import RedactionAgent, RedactionError
 from marsad_connector.agents.a4_obligation import resolve as resolve_obligations
+from marsad_connector.agents.a5_report import ImpactAssessment, build_report
 from marsad_connector.agents.a14_supervisor import inspect as inspect_for_injection
 from marsad_connector.config import settings
-from marsad_connector.crypto.tokeniser import build_tokeniser
+from marsad_connector.crypto.tokeniser import (
+    HmacTokeniser,
+    OprfUnavailable,
+    Tokeniser,
+    TokenNotEvaluated,
+    build_tokeniser,
+    canonical_provider,
+)
 from marsad_connector.db.session import build_engine, build_sessionmaker, create_all
 from marsad_connector.llm.budget import CallBudget
 from marsad_connector.llm.provider import LLMProvider, build_llm
@@ -41,8 +65,84 @@ from marsad_connector.store import InMemoryStore, SqlStore, provenance_from_draf
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("marsad.connector")
 
-app = FastAPI(title="MARSAD Connector", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+def _allowed_origins() -> list[str]:
+    """`*` is refused: this process serves plaintext to whichever origin may read it."""
+    origins = [o.strip().rstrip("/") for o in settings().cors_origins.split(",") if o.strip()]
+    if "*" in origins:
+        raise RuntimeError("CORS origin '*' is not permitted; list the console address")
+    return origins
+
+
+async def _retention_loop(interval_seconds: int) -> None:
+    """
+    Run the purge on a schedule, for as long as this process lives.
+
+    A failed run is recorded and the loop carries on: one bad night must not silently
+    end retention for the rest of the connector's life.
+    """
+    while True:
+        try:
+            result = await asyncio.to_thread(LOCAL.purge_expired)
+            log.info("connector.retention_run result=%s", result)
+        except Exception:  # see the docstring; the failure is logged, not swallowed
+            log.exception("connector.retention_run_failed")
+        await asyncio.sleep(interval_seconds)
+
+
+async def _notice_loop(interval_seconds: int) -> None:
+    """Check for notices on a timer. `collect_notices` already absorbs a core outage."""
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            await collect_notices()
+        except Exception:  # the next round may succeed; alerts must not stop for good
+            log.exception("connector.notice_collection_failed")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    cfg = settings()
+    tasks = []
+    if cfg.retention_purge_interval_seconds > 0 and LOCAL.name == "sql":
+        tasks.append(asyncio.create_task(_retention_loop(cfg.retention_purge_interval_seconds)))
+    if cfg.notice_poll_interval_seconds > 0:
+        tasks.append(asyncio.create_task(_notice_loop(cfg.notice_poll_interval_seconds)))
+    yield
+    for task in tasks:
+        task.cancel()
+
+
+app = FastAPI(title="MARSAD Connector", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def _console_auth(request: Request, call_next):
+    """
+    Every route but /health needs the console token, when one is configured.
+
+    Middleware rather than a per-route dependency because this process holds plaintext:
+    a route added next year must be protected without anyone remembering to protect it.
+    """
+    token = settings().console_token
+    if token and request.method != "OPTIONS" and request.url.path != "/health":
+        scheme, _, presented = request.headers.get("authorization", "").partition(" ")
+        expected = hashlib.sha256(token.encode()).digest()
+        supplied = hashlib.sha256(presented.strip().encode()).digest()
+        if scheme.lower() != "bearer" or not hmac.compare_digest(expected, supplied):
+            return JSONResponse({"detail": "console token required"}, status_code=401,
+                                headers={"WWW-Authenticate": "Bearer"})
+    return await call_next(request)
+
+
+# Added after the auth middleware so it runs first: a 401 still needs CORS headers for
+# the browser to be able to read it and ask the analyst for a token.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins(),
+    allow_methods=["GET", "POST"],
+    allow_headers=["authorization", "content-type"],
+)
 
 def _build_stores():
     """
@@ -64,6 +164,25 @@ def _build_stores():
                  model=lambda **kw: IncidentIn(**kw)),
         SqlOutboundLog(factory),
     )
+
+
+def _build_oprf_at_startup():
+    """
+    Check the pinned custodian keys while booting, for the same reason as the LLM check.
+
+    A key set from two different ceremonies passes every proof and yields tokens that
+    never match anyone's, so it must stop the connector, not surface as "no correlation".
+    """
+    cfg = settings()
+    if cfg.tokeniser.lower() != "oprf":
+        return None
+    from marsad_connector.crypto.oprf_client import OprfConfig
+
+    return OprfConfig.parse(cfg.oprf_epoch, cfg.oprf_threshold, cfg.oprf_group_key,
+                            cfg.oprf_custodians, cfg.oprf_custody_label)
+
+
+OPRF_CONFIG = _build_oprf_at_startup()
 
 
 #: LOCAL — the institution's incidents. Plaintext, and it never leaves this process
@@ -149,6 +268,10 @@ class IncidentIn(BaseModel):
     source: str = "ANALYST_STRUCTURED"
     confirmed_by: str | None = None
 
+    #: For the firm's own report. Never read by A3, and absent from the boundary contract.
+    impact: dict[str, Any] | None = None
+    systems_affected: list[str] | None = None
+
 
 class ExtractIn(BaseModel):
     """Free text as an analyst types it. No structure required, none assumed."""
@@ -183,7 +306,126 @@ async def health():
         "queued_submissions": len(OUTBOUND.queued()),
         "llm_provider": LLM.name,
         "sovereign_mode": cfg.sovereign_mode,
+        "console_auth_required": bool(cfg.console_token),
     }
+
+
+@app.get("/v1/retention/audit")
+async def retention_audit(limit: int = 50):
+    """Every scheduled purge and what it did, newest first. Counts only, never text."""
+    return LOCAL.retention_runs(limit=limit)
+
+
+class DependencyIn(BaseModel):
+    """Held locally. Only a token of the domain ever leaves."""
+
+    name: str = Field(min_length=1, max_length=200)
+    domain: str = Field(min_length=3, max_length=253)
+    substitutability: SubstitutabilityBand
+
+
+class DependenciesIn(BaseModel):
+    dependencies: list[DependencyIn] = Field(max_length=256)
+
+
+class DeclareIn(BaseModel):
+    """Sharing is a person's decision, so a declaration carries a person's name."""
+
+    declared_by: str = Field(min_length=1, max_length=128)
+
+
+class ProviderIncidentIn(DeclareIn):
+    severity: SeverityBand
+    detected_at: datetime | None = None
+
+
+@app.get("/v1/dependencies")
+async def list_dependencies():
+    """This firm's providers, with names. Local only."""
+    return LOCAL.dependencies()
+
+
+@app.post("/v1/dependencies")
+async def save_dependencies(body: DependenciesIn):
+    """Save the list here. Nothing leaves until someone chooses to publish it."""
+    rows: dict[str, dict] = {}
+    for dep in body.dependencies:
+        try:
+            domain = canonical_provider(dep.domain)
+        except ValueError as exc:
+            raise HTTPException(422, f"{dep.name}: {exc}") from exc
+        rows[domain] = {"name": dep.name, "domain": domain,
+                        "substitutability": dep.substitutability.value}
+    LOCAL.set_dependencies(list(rows.values()))
+    return {"saved": len(rows), "published": False}
+
+
+@app.post("/v1/dependencies/preview")
+async def preview_dependencies():
+    """Exactly what publishing would send, without sending it."""
+    return (await _build_dependency_declaration())[0].model_dump(mode="json")
+
+
+@app.post("/v1/dependencies/publish")
+async def publish_dependencies(body: DeclareIn):
+    """Send this firm's list, as tokens. Replaces whatever it declared before."""
+    declaration, scheme = await _build_dependency_declaration()
+    return await _send_declaration(declaration, scheme, body.declared_by)
+
+
+@app.post("/v1/provider-incidents")
+async def declare_provider_incident(body: ProviderIncidentIn):
+    """An enrolled provider declares an incident once, to every firm that relies on it."""
+    cfg = settings()
+    if not cfg.provider_domain:
+        raise HTTPException(409, "this connector is not configured as a provider")
+    domain = canonical_provider(cfg.provider_domain)
+    tokens, scheme = await _provider_tokens([domain])
+    try:
+        declaration = RedactionAgent.build_provider_incident(
+            domain, tokens[domain], institution_ref=cfg.institution_ref,
+            severity=body.severity.value,
+            detected_at=body.detected_at or datetime.now(timezone.utc),
+        )
+    except RedactionError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return await _send_declaration(declaration, scheme, body.declared_by)
+
+
+@app.get("/v1/declarations")
+async def list_declarations():
+    """The firm's record of every declaration it sent. Tokens only."""
+    return LOCAL.declarations()
+
+
+@app.post("/v1/declarations/retry")
+async def retry_declarations():
+    """Resend queued declarations exactly as recorded. Never rebuilds them."""
+    results = []
+    for record in LOCAL.declarations(status="QUEUED"):
+        outcome = await _deliver_declaration(record)
+        results.append({"declaration_id": record["declaration_id"], "status": outcome["status"]})
+    return {"attempted": len(results), "results": results}
+
+
+@app.get("/v1/provider-alerts")
+async def list_provider_alerts():
+    """Providers this firm declared that have reported an incident, named from its own list."""
+    names = await _names_by_token()
+    return [{**alert, "provider": names.get(alert["provider_token"], "A provider you declared")}
+            for alert in LOCAL.provider_alerts()]
+
+
+@app.get("/v1/notices")
+async def list_notices(limit: int = 200):
+    """What the core has told this firm about matches, newest first. Peer counts only."""
+    return LOCAL.notices(limit=limit)
+
+
+@app.post("/v1/notices/collect")
+async def collect_now():
+    """Check now rather than waiting for the timer. Safe to call at any time."""
+    return await collect_notices()
 
 
 @app.post("/v1/incidents")
@@ -317,7 +559,7 @@ async def get_incident(iid: str):
     return LOCAL.get(iid)
 
 
-@app.post("/v1/incidents/{iid}/obligations")
+@app.api_route("/v1/incidents/{iid}/obligations", methods=["GET", "POST"])
 async def obligations(iid: str):
     """
     A4 — resolve every notification duty for this incident.
@@ -328,16 +570,37 @@ async def obligations(iid: str):
     """
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
-    inc = LOCAL.get(iid)
-    cfg = settings()
-    result = resolve_obligations(
+    return _resolve_for(iid, LOCAL.get(iid))
+
+
+def _resolve_for(iid: str, inc: IncidentIn) -> dict:
+    """Same inputs, same duties: the obligations endpoint and the report must agree."""
+    return resolve_obligations(
         severity=inc.severity,
         detected_at=inc.detected_at or datetime.now(timezone.utc),
-        jurisdictions=inc.jurisdictions or cfg.jurisdictions,
+        jurisdictions=inc.jurisdictions or settings().jurisdictions,
         essential_service_affected=inc.essential_service_affected,
         incident_ref=iid[:8].upper(),
-    )
-    return result.as_dict()
+    ).as_dict()
+
+
+@app.post("/v1/incidents/{iid}/impact")
+async def record_impact(iid: str, body: ImpactAssessment):
+    """Record a named analyst's banded assessment. Stored locally; it never crosses."""
+    if iid not in LOCAL:
+        raise HTTPException(404, "unknown incident")
+    impact = body.model_dump(exclude={"systems_affected"})
+    LOCAL.set_impact(iid, impact, list(body.systems_affected))
+    return {"incident_id": iid, "stored_locally": True, "submitted": False}
+
+
+@app.get("/v1/incidents/{iid}/standard-report")
+async def standard_report(iid: str):
+    """The firm's report in one format, with what is still missing. The firm files it."""
+    if iid not in LOCAL:
+        raise HTTPException(404, "unknown incident")
+    inc = LOCAL.get(iid)
+    return build_report(iid, inc, _resolve_for(iid, inc))
 
 
 @app.post("/v1/incidents/{iid}/supervise")
@@ -351,7 +614,7 @@ async def supervise(iid: str):
     ).as_dict()
 
 
-@app.post("/v1/incidents/{iid}/preview")
+@app.api_route("/v1/incidents/{iid}/preview", methods=["GET", "POST"])
 async def preview(iid: str) -> IncidentSubmission:
     """
     Show exactly what would cross the boundary, without sending it.
@@ -359,7 +622,7 @@ async def preview(iid: str) -> IncidentSubmission:
     Deliberately a first-class endpoint: an institution's security team can
     inspect the emitted payload for any incident before enabling submission.
     """
-    return _build(iid)[0]
+    return (await _build(iid))[0]
 
 
 @app.post("/v1/incidents/{iid}/submit")
@@ -390,7 +653,7 @@ async def submit(iid: str):
     if last is not None and last.status == Outcome.QUEUED.value:
         record = last
     else:
-        sub, scheme = _build(iid)
+        sub, scheme = await _build(iid)
         incident = LOCAL.get(iid)
         record = OUTBOUND.record(
             sub, incident_id=iid, tokeniser_scheme=scheme,
@@ -527,6 +790,47 @@ async def _deliver(record: OutboundRecord) -> OutboundRecord:
                             core_response=body)
 
 
+#: Re-read this far behind the newest notice held, so a match recorded while the last
+#: check was running is not missed. Duplicates are dropped on the notice id.
+NOTICE_OVERLAP = timedelta(seconds=60)
+
+
+async def collect_notices() -> dict:
+    """
+    Ask the core whether this firm has been matched since it last asked.
+
+    A read. It sends this firm's pseudonym and a timestamp, with no body, and reads no
+    incident. An unreachable core costs a late alert and nothing else, so a failure is
+    reported in the result and never raised: MARSAD stays off the critical path.
+    """
+    cfg = settings()
+    params: dict[str, str] = {"institution_ref": cfg.institution_ref}
+    last = LOCAL.last_notice_at()
+    if last is not None:
+        params["since"] = (last - NOTICE_OVERLAP).isoformat()
+
+    try:
+        async with _core_client(cfg) as client:
+            response = await client.get(f"{cfg.core_url}/v1/notices", params=params)
+        response.raise_for_status()
+        body = response.json()
+        notices = [
+            CorrelationNotice.model_validate(n).model_dump(mode="json") for n in body["notices"]
+        ]
+        alerts = [
+            ProviderAlert.model_validate(a).model_dump(mode="json")
+            for a in body.get("provider_alerts", [])
+        ]
+    except (httpx.HTTPError, ValidationError, ValueError, KeyError, TypeError) as exc:
+        log.warning("connector.notices_unavailable err=%s", type(exc).__name__)
+        return {"collected": False, "new_notices": 0, "error": type(exc).__name__}
+
+    fresh = LOCAL.save_notices(notices) + LOCAL.save_provider_alerts(alerts)
+    if fresh:
+        log.info("connector.notices_received new=%d", fresh)
+    return {"collected": True, "new_notices": fresh}
+
+
 def _core_tls(cfg) -> dict:
     """
     Client-side mutual TLS material for reaching the core.
@@ -562,14 +866,137 @@ def _core_tls(cfg) -> dict:
     return {"verify": context}
 
 
-def _build(iid: str) -> tuple[IncidentSubmission, str]:
-    """A fresh payload from A3, and the scheme of the tokeniser that produced it."""
+def _custodian_client(custodian) -> httpx.AsyncClient:
+    """
+    The one HTTP client that reaches the key custodians. Tests bind them in-process here.
+
+    Sends only what `oprf_client` hands it, which the request model limits to blinded
+    elements. Authenticates exactly as the core connection does.
+    """
+    return httpx.AsyncClient(timeout=10, **_core_tls(settings()))
+
+
+async def _tokeniser_for(iid: str) -> Tokeniser:
+    """The tokeniser for this incident: fetched first for an OPRF, so A3 stays offline."""
+    cfg = settings()
+    if OPRF_CONFIG is None:
+        return build_tokeniser(cfg.tokeniser)
+    from marsad_connector.crypto.oprf_client import resolve_tokens
+
+    return await resolve_tokens(
+        LOCAL.get(iid).indicators, OPRF_CONFIG, _custodian_client,
+        client_label=cfg.institution_ref,
+    )
+
+
+async def _provider_tokens(domains: list[str]) -> tuple[dict[str, str], str]:
+    """Tokens for provider domains, fetched first so A3 stays offline, as for incidents."""
+    cfg = settings()
+    if OPRF_CONFIG is None:
+        tokeniser = HmacTokeniser()
+        return {d: tokeniser.tokenise_provider(d) for d in domains}, tokeniser.scheme
+    from marsad_connector.crypto.oprf_client import resolve_provider_tokens
+
+    try:
+        tokens = await resolve_provider_tokens(
+            domains, OPRF_CONFIG, _custodian_client, client_label=cfg.institution_ref,
+        )
+    except OprfUnavailable as exc:
+        raise HTTPException(503, f"tokens unavailable, nothing was sent: {exc}") from exc
+    return tokens, OPRF_CONFIG.scheme
+
+
+async def _names_by_token() -> dict[str, str]:
+    """Which provider each token means, computed here. The core could never say."""
+    dependencies = LOCAL.dependencies()
+    try:
+        tokens, _ = await _provider_tokens([d["domain"] for d in dependencies])
+    except HTTPException:
+        return {}
+    return {tokens[d["domain"]]: d["name"] for d in dependencies}
+
+
+async def _build_dependency_declaration():
+    dependencies = LOCAL.dependencies()
+    tokens, scheme = await _provider_tokens([d["domain"] for d in dependencies])
+    sequence = sum(d["kind"] == "DEPENDENCY" for d in LOCAL.declarations()) + 1
+    try:
+        return RedactionAgent.build_dependency_declaration(
+            dependencies, tokens, institution_ref=settings().institution_ref, sequence=sequence,
+        ), scheme
+    except RedactionError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+async def _send_declaration(declaration, scheme: str, declared_by: str) -> dict:
+    """Record, then send. The record exists before anything leaves, as for submissions."""
+    record = {
+        "declaration_id": declaration.declaration_id, "kind": declaration.kind,
+        "payload": declaration.model_dump(mode="json"),
+        "payload_digest": payload_digest(declaration), "tokeniser_scheme": scheme,
+        "declared_by": declared_by,
+    }
+    LOCAL.record_declaration(record)
+    outcome = await _deliver_declaration(record)
+    if outcome["status"] == "QUEUED":
+        raise HTTPException(503, f"core unreachable; declaration {record['declaration_id']} "
+                                 f"queued locally")
+    if outcome["status"] != "ACCEPTED":
+        raise HTTPException(502, f"declaration {outcome['status'].lower()}")
+    return outcome
+
+
+async def _deliver_declaration(record: dict) -> dict:
+    """Send one recorded declaration, after A3 has re-checked it against its digest."""
+    declaration_id = record["declaration_id"]
+
+    def finish(status: str, http_status: int | None = None, core_digest: str | None = None,
+               reply: dict | None = None) -> dict:
+        LOCAL.update_declaration(declaration_id, status=status, http_status=http_status,
+                                 core_digest=core_digest)
+        return {"declaration_id": declaration_id, "status": status,
+                "digest_confirmed": core_digest == record["payload_digest"],
+                "core_response": reply}
+
+    try:
+        declaration = RedactionAgent.restore_declaration(
+            record["payload"], recorded_digest=record["payload_digest"],
+        )
+    except RedactionError as exc:
+        log.error("connector.declaration_refused id=%s reason=%s", declaration_id, exc)
+        return finish("REFUSED")
+
+    cfg = settings()
+    try:
+        async with _core_client(cfg) as client:
+            r = await client.post(f"{cfg.core_url}/v1/declarations",
+                                  json=declaration.model_dump(mode="json"))
+    except httpx.HTTPError as exc:
+        log.warning("connector.core_unreachable declaration=%s err=%s", declaration_id,
+                    type(exc).__name__)
+        return finish("QUEUED")
+    if r.status_code >= 500:
+        return finish("QUEUED", r.status_code)
+    if r.status_code >= 400:
+        log.error("connector.declaration_rejected id=%s status=%d", declaration_id, r.status_code)
+        return finish("REJECTED", r.status_code)
+    body = r.json()
+    return finish("ACCEPTED", r.status_code, body.get("payload_digest"), body)
+
+
+async def _build(iid: str) -> tuple[IncidentSubmission, str]:
+    """
+    A fresh payload from A3, and the scheme of the tokeniser that produced it.
+
+    An unreachable custodian quorum is a 503 with nothing built and nothing recorded.
+    The incident stays local, so the firm's own work is unaffected and it can retry.
+    """
     if iid not in LOCAL:
         raise HTTPException(404, "unknown incident")
     cfg = settings()
-    tokeniser = build_tokeniser(cfg.tokeniser)
-    agent = RedactionAgent(tokeniser)
     try:
+        tokeniser = await _tokeniser_for(iid)
+        agent = RedactionAgent(tokeniser)
         return agent.build_submission(
             LOCAL.get(iid),
             institution_ref=cfg.institution_ref,
@@ -578,3 +1005,6 @@ def _build(iid: str) -> tuple[IncidentSubmission, str]:
         ), tokeniser.scheme
     except RedactionError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except (OprfUnavailable, TokenNotEvaluated) as exc:
+        log.error("connector.tokens_unavailable incident=%s reason=%s", iid, exc)
+        raise HTTPException(503, f"tokens unavailable, nothing was sent: {exc}") from exc

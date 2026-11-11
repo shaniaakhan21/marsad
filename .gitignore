@@ -48,3 +48,5 @@ Thumbs.db
 # in version control is a private key on every machine that ever cloned the repo.
 # Regenerate with deploy/make-certs.sh.
 deploy/certs/
+# Secret key shares from scripts/oprf_keygen.py. Never in version control.
+deploy/oprf/

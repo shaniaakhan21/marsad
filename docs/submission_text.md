@@ -1,5 +1,10 @@
 # MARSAD — Submission Text
 
+> **Historical record.** This is the text submitted at the hackathon, kept as it was.
+> Several items it lists as not built (the OPRF, persistence, the audit ledger, the
+> regulator view) have since been built and tested; see the README and
+> `docs/90_day_execution_plan.md` for the current status.
+
 **UAE Hackathon 2026 · Track 1 HackArena (Startups) · Challenge #9**
 Securities and Commodities Authority (now the **UAE Capital Market Authority**)
 Theme 4 — Digital Trust & Cyber-Secure Nation · Vertech Creations FZCO

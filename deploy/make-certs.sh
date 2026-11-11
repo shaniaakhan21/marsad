@@ -28,7 +28,7 @@ openssl genrsa -out core.key 2048 2>/dev/null
 openssl req -new -key core.key -out core.csr \
   -subj "/C=AE/O=MARSAD/OU=Core/CN=${CORE_DOMAIN}" 2>/dev/null
 cat > core.ext <<EXT
-subjectAltName = DNS:${CORE_DOMAIN}, DNS:core, DNS:localhost, IP:127.0.0.1
+subjectAltName = DNS:${CORE_DOMAIN}, DNS:core, DNS:boundary-gateway, DNS:oprf-gateway, DNS:localhost, IP:127.0.0.1
 extendedKeyUsage = serverAuth
 EXT
 openssl x509 -req -in core.csr -CA ca.crt -CAkey ca.key -CAcreateserial \

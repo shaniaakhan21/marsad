@@ -58,17 +58,22 @@ from typing import Any, Protocol
 
 from marsad_contracts.boundary import (
     CoarseMetadata,
+    Declaration,
+    DeclaredDependency,
+    DependencyDeclaration,
     DisclosureRung,
     IncidentSubmission,
     IndicatorType,
     KeyedToken,
     ObligationReceiptRef,
+    ProviderIncidentDeclaration,
     Sector,
     SeverityBand,
     SizeBand,
+    SubstitutabilityBand,
 )
 from marsad_contracts.digest import payload_digest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from marsad_connector.crypto.tokeniser import Tokeniser
 
@@ -216,6 +221,73 @@ class RedactionAgent:
         if incident is not None:
             RedactionAgent._assert_no_leakage(submission, incident)
         return submission
+
+    # -- provider declarations ----------------------------------------------
+
+    @staticmethod
+    def build_dependency_declaration(
+        dependencies: list[dict[str, Any]], tokens: dict[str, str],
+        *, institution_ref: str, sequence: int,
+    ) -> DependencyDeclaration:
+        """
+        The firm's provider list, as tokens. Built here for the same reason as a
+        submission: one small file decides everything that leaves.
+
+        Reads the domain only to look up its token, and the name only for the leak guard.
+        A dependency without a token fails the build; a list quietly missing a provider
+        would understate the firm's exposure.
+        """
+        try:
+            declared = [
+                DeclaredDependency(provider_token=tokens[d["domain"]],
+                                   substitutability=SubstitutabilityBand(d["substitutability"]))
+                for d in dependencies
+            ]
+        except (KeyError, ValueError) as exc:
+            raise RedactionError(f"dependency cannot be declared safely: {exc!r}") from exc
+        declaration = DependencyDeclaration(
+            declaration_id=str(uuid.uuid4()), institution_ref=institution_ref,
+            sequence=sequence, dependencies=declared,
+        )
+        RedactionAgent._assert_names_absent(declaration, dependencies)
+        return declaration
+
+    @staticmethod
+    def build_provider_incident(
+        domain: str, token: str, *, institution_ref: str, severity: str,
+        detected_at: datetime | None,
+    ) -> ProviderIncidentDeclaration:
+        """An enrolled provider's own report. Band and hour, and no description of it."""
+        declaration = ProviderIncidentDeclaration(
+            declaration_id=str(uuid.uuid4()), institution_ref=institution_ref,
+            provider_token=token, severity_band=SeverityBand(severity),
+            ts_bucket=RedactionAgent._bucket(detected_at),
+        )
+        RedactionAgent._assert_names_absent(declaration, [{"domain": domain}])
+        return declaration
+
+    @staticmethod
+    def restore_declaration(payload: dict[str, Any], *, recorded_digest: str):
+        """Bring back a recorded declaration so a retry resends it unchanged."""
+        try:
+            declaration = TypeAdapter(Declaration).validate_python(payload)
+        except ValidationError as exc:
+            raise RedactionError(f"recorded declaration is no longer valid: {exc}") from exc
+        if payload_digest(declaration) != recorded_digest:
+            raise RedactionError("recorded declaration does not match its digest")
+        return declaration
+
+    @staticmethod
+    def _assert_names_absent(declaration, entries: list[dict[str, Any]]) -> None:
+        """Belt and braces, as for incidents: a provider's identity must never appear."""
+        blob = declaration.model_dump_json().lower()
+        for entry in entries:
+            for key in ("name", "domain"):
+                value = str(entry.get(key, "")).lower()
+                if len(value) > 3 and value in blob:
+                    raise RedactionError(
+                        "LEAK GUARD TRIPPED: a provider's identity appears in a declaration."
+                    )
 
     # -- internals ----------------------------------------------------------
 

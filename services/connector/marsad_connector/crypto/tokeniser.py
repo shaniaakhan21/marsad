@@ -17,7 +17,9 @@ indicators — which is precisely the position we promise no one occupies.
 An OPRF fixes this: the institution learns PRF(k, x) through an oblivious
 protocol without learning k, and the key holder never sees x. Combined with
 threshold custody (no single party can use k alone), rate limiting and audit,
-bulk enumeration becomes detectable and unilaterally impossible.
+bulk enumeration becomes detectable and unilaterally impossible. That is
+`OprfTokeniser` here, `crypto/oprf_client.py` for the round trip, and
+`services/evaluator` for the custodians.
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import unicodedata
 from abc import ABC, abstractmethod
 
@@ -33,6 +36,23 @@ from marsad_contracts.boundary import IndicatorType
 from marsad_connector.lang.arabic import normalise as normalise_arabic
 
 TOKEN_LEN = 32  # hex chars retained; 128 bits is ample for equality matching
+
+#: Hex chars of PRF output in an OPRF token, which is prefixed by 8 hex chars of epoch.
+#: The prefix is why tokens from different key epochs can never compare equal, with no
+#: new field on the boundary contract. The 40-char length also keeps them apart from
+#: the 32-char HMAC tokens during a migration.
+OPRF_OUTPUT_HEX = 32
+
+#: (indicator type, canonical value) -> token, for one incident.
+TokenTable = dict[tuple[IndicatorType, str], str]
+
+
+class OprfUnavailable(RuntimeError):
+    """A quorum of custodians could not be reached or could not prove their work."""
+
+
+class TokenNotEvaluated(RuntimeError):
+    """An indicator reached A3 that the custodians were never asked about."""
 
 
 def canonicalise(value: str, indicator_type: IndicatorType) -> str:
@@ -66,6 +86,31 @@ def canonicalise(value: str, indicator_type: IndicatorType) -> str:
     if not v:
         raise ValueError("indicator is empty after canonicalisation")
     return v
+
+
+#: Separates provider tokens from indicator tokens. Without it, a provider's domain and
+#: the same domain seen in an attack would tokenise alike, and the core could link a
+#: firm's supplier list to its incidents.
+PROVIDER_DOMAIN_SEPARATOR = b"PROVIDER\x1f"
+
+_PROVIDER_DOMAIN = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$")
+
+
+def canonical_provider(domain: str) -> str:
+    """
+    A provider's identity is its internet domain, in canonical form.
+
+    A domain rather than a name, because two firms will write a name differently and
+    their tokens would never meet, with no error to notice.
+    """
+    canonical = canonicalise(domain, IndicatorType.DOMAIN)
+    if not _PROVIDER_DOMAIN.match(canonical):
+        raise ValueError("a provider is identified by its internet domain")
+    return canonical
+
+
+def provider_input(canonical: str) -> bytes:
+    return PROVIDER_DOMAIN_SEPARATOR + canonical.encode()
 
 
 class Tokeniser(ABC):
@@ -109,47 +154,49 @@ class HmacTokeniser(Tokeniser):
         msg = f"{indicator_type.value}\x1f{canonical}".encode()
         return hmac.new(self._key, msg, hashlib.sha256).hexdigest()[:TOKEN_LEN]
 
+    def tokenise_provider(self, canonical: str) -> str:
+        return hmac.new(self._key, provider_input(canonical), hashlib.sha256).hexdigest()[:TOKEN_LEN]
+
 
 class OprfTokeniser(Tokeniser):
     """
-    PRODUCTION TARGET — not yet implemented.
+    Tokens from the threshold OPRF, already fetched for this incident.
 
-    Intended shape: an oblivious PRF over Ristretto255 (VOPRF, RFC 9497).
+    A lookup table and nothing more. The network round trip to the key custodians
+    happens beforehand in `oprf_client.resolve_tokens`, so the redaction agent that
+    calls this still holds no network capability.
 
-        1. connector blinds the canonicalised indicator      -> blinded element
-        2. core (or threshold quorum) evaluates with key k   -> evaluated element
-        3. connector unblinds and finalises                  -> token
-
-    The connector never learns k; the evaluator never learns the indicator.
-    Key material sits in an HSM under threshold custody so no single party can
-    evaluate alone, and every evaluation is metered and audited to make bulk
-    enumeration visible.
-
-    Implementation notes for whoever picks this up:
-      * `pysodium` / `libsodium` expose the Ristretto255 operations needed.
-      * Batch blinding matters — one round trip per incident, not per indicator.
-      * Key epochs must be recorded in `scheme` so the core never compares
-        tokens produced under different keys and reports a false negative.
+    A value missing from the table raises `TokenNotEvaluated`, deliberately not a
+    ValueError: A3 drops an untokenisable indicator on ValueError and carries on, which
+    is right for an empty value and wrong for a value the protocol skipped. That would
+    be a submission quietly missing an indicator. Here the build fails instead.
     """
 
-    scheme = "oprf-ristretto255-v1"
+    def __init__(self, table: TokenTable, scheme: str) -> None:
+        self._table = table
+        self.scheme = scheme
 
-    def __init__(self, *_, **__) -> None:
-        raise NotImplementedError(
-            "OprfTokeniser is the production target. Implement RFC 9497 VOPRF "
-            "with threshold key custody before processing real institutional data."
-        )
-
-    def tokenise(self, value: str, indicator_type: IndicatorType) -> str:  # pragma: no cover
-        raise NotImplementedError
+    def tokenise(self, value: str, indicator_type: IndicatorType) -> str:
+        canonical = canonicalise(value, indicator_type)
+        try:
+            return self._table[(indicator_type, canonical)]
+        except KeyError:
+            raise TokenNotEvaluated(
+                "an indicator reached A3 without having been evaluated by the custodians"
+            ) from None
 
 
 def build_tokeniser(scheme: str = "hmac") -> Tokeniser:
-    """Factory. The only place a concrete tokeniser is chosen."""
+    """
+    Factory for tokenisers that need no per-incident setup.
+
+    The OPRF is built per incident by `oprf_client.resolve_tokens`, so asking for it
+    here is a programming error and fails rather than falling back to something weaker.
+    """
     match scheme.lower():
         case "hmac":
             return HmacTokeniser()
         case "oprf":
-            return OprfTokeniser()
+            raise ValueError("OPRF tokens are per incident; use oprf_client.resolve_tokens")
         case _:
             raise ValueError(f"unknown tokeniser scheme: {scheme!r}")

@@ -20,9 +20,9 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/demo");
 });
 
-test("the six steps are laid out before anything runs", async ({ page }) => {
+test("the nine steps are laid out before anything runs", async ({ page }) => {
   await expect(page.getByTestId("step-rail")).toBeVisible();
-  for (let n = 1; n <= 6; n++) {
+  for (let n = 1; n <= 9; n++) {
     await expect(page.getByTestId(`step-${n}`)).toBeVisible();
   }
   await expect(page.getByRole("button", { name: RUN })).toBeEnabled();
@@ -93,9 +93,30 @@ test("the correlation, the gate, the exposure and the injection all render", asy
   await expect(injection).toContainText("HIGH");
 });
 
-test("the demo reaches its completion state", async ({ page }) => {
+test("the first firm is warned, the supplier step reports honestly, and the receipt shows", async ({ page }) => {
+  test.setTimeout(150_000);
   await page.getByRole("button", { name: RUN }).click();
-  await expect(page.getByTestId("demo-complete")).toBeVisible({ timeout: 90_000 });
+
+  const warned = page.getByTestId("first-firm-warned");
+  await expect(warned).toBeVisible({ timeout: 90_000 });
+  await expect(warned).toContainText("WARNED");
+
+  // This suite runs without a supplier connector. The step must say so, not pretend.
+  const supplier = page.getByTestId("supplier");
+  await expect(supplier).toBeVisible({ timeout: 90_000 });
+  await expect(supplier).toContainText(/FIRMS WARNED|No supplier connector/);
+
+  const receipt = page.getByTestId("receipt");
+  await expect(receipt).toBeVisible({ timeout: 90_000 });
+  await expect(receipt).toContainText(/VERIFIED|WAITING FOR THE NEXT ANCHORING ROUND/);
+});
+
+test("the demo reaches its completion state", async ({ page }) => {
+  // Nine paced steps plus up to 20s waiting on the anchoring loop: longer than the 30s
+  // default. The assertion is unchanged; only the time allowed to reach it is.
+  test.setTimeout(150_000);
+  await page.getByRole("button", { name: RUN }).click();
+  await expect(page.getByTestId("demo-complete")).toBeVisible({ timeout: 120_000 });
   await expect(page.getByRole("button", { name: RUN })).toBeEnabled();
 });
 

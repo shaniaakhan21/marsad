@@ -6,7 +6,8 @@
 # ------------------------------------------------------------
 # Each connector sits alone on its own edge network. Core sits alone on core_net.
 # The only container attached to both sides is boundary-gateway, and it forwards
-# exactly one endpoint: POST /v1/submissions.
+# exactly three routes. POST /v1/submissions and POST /v1/declarations are the only ways
+# anything leaves a firm; GET /v1/notices brings a firm its own notices and accepts nothing.
 #
 # What that buys, and which layer enforces it:
 #
@@ -14,7 +15,7 @@
 #   core -> connector            no route at all      (Docker, network layer)
 #   connector -> other connector no route at all      (Docker, network layer)
 #   connector -> anything but    403 at the gateway   (nginx config, infra/)
-#     POST /v1/submissions
+#     those three routes
 #
 # Databases follow the same split. Core has its own Postgres on core_net; each
 # institution has its own Postgres on its own edge network. The core cannot open an
@@ -32,7 +33,18 @@ networks:
   edge_almaha: {}
   edge_gulfsec: {}
   edge_emcap: {}
+  edge_vendor: {}
   core_net: {}
+  # The key custodians. No container on core_net joins this network, so the core and the
+  # holders of the token key have no route to each other.
+  custodian_net: {}
+
+x-oprf: &oprf
+  MARSAD_TOKENISER: oprf
+  MARSAD_OPRF_EPOCH: "1"
+  MARSAD_OPRF_THRESHOLD: "2"
+  MARSAD_OPRF_GROUP_KEY: "2ad797e2d877975fee8e511f11966b5748c6d0e99e605e9713e5491922c4e75c"
+  MARSAD_OPRF_CUSTODIANS: '[{"index":1,"url":"http://oprf-gateway:8000/c1","public_share":"16202345bfa9bcbc6ce09fe3f88fb54ccd1e289908a834382dae1a824554c77a"},{"index":2,"url":"http://oprf-gateway:8000/c2","public_share":"b6ab258bc7bf5dfc23aec28bc9f53d0c47d51b36ad36e227cbc348b6d5651001"},{"index":3,"url":"http://oprf-gateway:8000/c3","public_share":"d60af04fd85418a875898056b9295ce138b12a22ad22062ebbcaa88f1e431e6d"}]'
 
 services:
   # The core's store of record. On core_net only: no connector can reach it, and it
@@ -58,6 +70,11 @@ services:
       MARSAD_CORE_SIMILARITY_THRESHOLD: "0.60"
       MARSAD_CORE_K_ANONYMITY: "3"
       MARSAD_CORE_STORE: sql
+      # One fictional provider, enrolled for the demo. Its token is computed under the
+      # dev-only key shares above, so it changes if those shares are regenerated.
+      MARSAD_CORE_PROVIDER_DIRECTORY: '{"000000019c65910c7e0082a6cec3a3eb38bac4a4":{"name":"Demo KYC provider (fictional)","service":"Onboarding identity checks","market_activity_share":0.22,"owner_ref":"psd_vendor01"}}'
+      # Short so a demo shows a receipt being anchored. Local chain until Besu is enabled.
+      MARSAD_CORE_ANCHOR_INTERVAL_SECONDS: "20"
       MARSAD_CORE_AUTO_CREATE_SCHEMA: "false"
       MARSAD_CORE_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-core-password@core-db:5432/marsad_core"
     ports: ["8000:8000"]
@@ -67,7 +84,7 @@ services:
         condition: service_healthy
 
   # The only container on both sides of the boundary. Holds no state, runs no
-  # application code, and forwards one endpoint.
+  # application code, and forwards three routes.
   boundary-gateway:
     build: { context: ., dockerfile: infra/Dockerfile.gateway }
     # Aliases are declared explicitly on every edge network rather than left to
@@ -83,13 +100,56 @@ services:
         aliases: [boundary-gateway]
       edge_emcap:
         aliases: [boundary-gateway]
+      edge_vendor:
+        aliases: [boundary-gateway]
       core_net:
         aliases: [boundary-gateway]
     depends_on: [core]
 
-  # NOTE: all three connectors share MARSAD_TOKEN_KEY because tokens must be
-  # comparable across institutions. In production this key is never distributed —
-  # it lives in an HSM under threshold custody and is used via an OPRF protocol.
+  # Three key custodians, each holding one share. DEV-ONLY shares from
+  # scripts/oprf_keygen.py, committed for the same reason as the dev-only passwords
+  # above. In a pilot each share is generated in a ceremony and held by a different party.
+  evaluator-1:
+    build: { context: ., dockerfile: services/evaluator/Dockerfile }
+    environment:
+      MARSAD_EVALUATOR_SHARE_JSON: '{"epoch":1,"index":1,"threshold":2,"parties":3,"share":"d42b91b160841c43a659534734558c1ccc37b5e281a715a266c2e0dceffe2106"}'
+      MARSAD_EVALUATOR_AUDIT_LOG: /var/lib/marsad/audit.jsonl
+    volumes: ["evaluator_1_audit:/var/lib/marsad"]
+    networks: [custodian_net]
+
+  evaluator-2:
+    build: { context: ., dockerfile: services/evaluator/Dockerfile }
+    environment:
+      MARSAD_EVALUATOR_SHARE_JSON: '{"epoch":1,"index":2,"threshold":2,"parties":3,"share":"c2a423a3b0f83e5a1e8b635a1d4876d9f72fbc9e93be941ec126d44f57d1b309"}'
+      MARSAD_EVALUATOR_AUDIT_LOG: /var/lib/marsad/audit.jsonl
+    volumes: ["evaluator_2_audit:/var/lib/marsad"]
+    networks: [custodian_net]
+
+  evaluator-3:
+    build: { context: ., dockerfile: services/evaluator/Dockerfile }
+    environment:
+      MARSAD_EVALUATOR_SHARE_JSON: '{"epoch":1,"index":3,"threshold":2,"parties":3,"share":"b01db694006d617196bc736d063b60962328c35aa5d5139b1b8bc7c2bea3450d"}'
+      MARSAD_EVALUATOR_AUDIT_LOG: /var/lib/marsad/audit.jsonl
+    volumes: ["evaluator_3_audit:/var/lib/marsad"]
+    networks: [custodian_net]
+
+  # The only path from an edge network to the custodians. Forwards evaluate and nothing
+  # else, and is not attached to core_net.
+  oprf-gateway:
+    build: { context: ., dockerfile: infra/Dockerfile.oprf-gateway }
+    networks:
+      edge_almaha:
+        aliases: [oprf-gateway]
+      edge_gulfsec:
+        aliases: [oprf-gateway]
+      edge_emcap:
+        aliases: [oprf-gateway]
+      edge_vendor:
+        aliases: [oprf-gateway]
+      custodian_net:
+        aliases: [oprf-gateway]
+    depends_on: [evaluator-1, evaluator-2, evaluator-3]
+
   # almaha's own plaintext store. On almaha's edge network only — unreachable from
   # core_net, and unreachable from any other institution.
   edge-db-almaha:
@@ -114,16 +174,19 @@ services:
       MARSAD_SECTOR: BANK
       MARSAD_SIZE_BAND: LARGE
       MARSAD_CORE_URL: "http://boundary-gateway:8000"
-      MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
-      MARSAD_TOKENISER: hmac
+      <<: *oprf
       MARSAD_STORE: sql
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-almaha:5432/marsad_edge"
       MARSAD_RETENTION_DAYS: "90"
+      # Short so a demo shows the first firm being warned. The default is 60.
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "5"
     ports: ["8101:8000"]
     networks: [edge_almaha]
     depends_on:
       boundary-gateway:
+        condition: service_started
+      oprf-gateway:
         condition: service_started
       edge-db-almaha:
         condition: service_healthy
@@ -152,16 +215,19 @@ services:
       MARSAD_SECTOR: BROKER
       MARSAD_SIZE_BAND: MID
       MARSAD_CORE_URL: "http://boundary-gateway:8000"
-      MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
-      MARSAD_TOKENISER: hmac
+      <<: *oprf
       MARSAD_STORE: sql
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-gulfsec:5432/marsad_edge"
       MARSAD_RETENTION_DAYS: "90"
+      # Short so a demo shows the first firm being warned. The default is 60.
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "5"
     ports: ["8102:8000"]
     networks: [edge_gulfsec]
     depends_on:
       boundary-gateway:
+        condition: service_started
+      oprf-gateway:
         condition: service_started
       edge-db-gulfsec:
         condition: service_healthy
@@ -190,19 +256,43 @@ services:
       MARSAD_SECTOR: INVEST
       MARSAD_SIZE_BAND: MID
       MARSAD_CORE_URL: "http://boundary-gateway:8000"
-      MARSAD_TOKEN_KEY: "dev-only-shared-key-change-me-16+"
-      MARSAD_TOKENISER: hmac
+      <<: *oprf
       MARSAD_STORE: sql
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:dev-only-edge-password@edge-db-emcap:5432/marsad_edge"
       MARSAD_RETENTION_DAYS: "90"
+      # Short so a demo shows the first firm being warned. The default is 60.
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "5"
     ports: ["8103:8000"]
     networks: [edge_emcap]
     depends_on:
       boundary-gateway:
         condition: service_started
+      oprf-gateway:
+        condition: service_started
       edge-db-emcap:
         condition: service_healthy
+
+  # A third-party provider's connector: it reports its own incidents, once, to every firm
+  # that declared it. Fictional, for the demo. SQLite inside its own container keeps the
+  # demo light; it is still its own store on its own network.
+  connector-vendor:
+    build: { context: ., dockerfile: services/connector/Dockerfile }
+    environment:
+      <<: *oprf
+      MARSAD_INSTITUTION_NAME: "Demo KYC provider"
+      MARSAD_INSTITUTION_REF: "psd_vendor01"
+      MARSAD_SECTOR: PROVIDER
+      MARSAD_SIZE_BAND: MID
+      MARSAD_PROVIDER_DOMAIN: "kyc-vendor.example"
+      MARSAD_CORE_URL: "http://boundary-gateway:8000"
+      MARSAD_STORE: sql
+      MARSAD_DATABASE_URL: "sqlite:////var/lib/marsad/vendor.db"
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "0"
+    volumes: ["vendor_data:/var/lib/marsad"]
+    ports: ["8104:8000"]
+    networks: [edge_vendor]
+    depends_on: [boundary-gateway, oprf-gateway]
 
   # Browser-side only: NEXT_PUBLIC_* values are resolved in the user's browser
   # against published host ports, so the web container needs no route to either side.
@@ -211,6 +301,7 @@ services:
     environment:
       NEXT_PUBLIC_CORE_URL: "http://localhost:8000"
       NEXT_PUBLIC_CONNECTORS: "http://localhost:8101,http://localhost:8102,http://localhost:8103"
+      NEXT_PUBLIC_VENDOR_CONNECTOR: "http://localhost:8104"
     ports: ["3000:3000"]
 
 # Separate volumes, one per database. Never shared — a shared volume would be a
@@ -220,3 +311,7 @@ volumes:
   edge_db_almaha_data: {}
   edge_db_gulfsec_data: {}
   edge_db_emcap_data: {}
+  evaluator_1_audit: {}
+  evaluator_2_audit: {}
+  evaluator_3_audit: {}
+  vendor_data: {}

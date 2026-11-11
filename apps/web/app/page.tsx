@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, connectors } from "@/lib/api";
-import type { Correlation, IncidentSubmission } from "@/lib/types";
+import type { Correlation, IncidentSubmission, PeerNotice } from "@/lib/types";
 import { ActionButton, PageHeader } from "@/components/PageHeader";
 import { Panel } from "@/components/Panel";
 
@@ -55,6 +55,30 @@ export default function Home() {
   const [corr, setCorr] = useState<Correlation[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<PeerNotice[][]>(connectors.map(() => []));
+
+  // Each firm asks for its own warnings. This is how the first firm to report finds out.
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const next = await Promise.all(connectors.map(async (base) => {
+        try {
+          await api.collectNotices(base);
+          return await api.notices(base);
+        } catch {
+          return [];
+        }
+      }));
+      if (!cancelled) setWarnings(next);
+    };
+    void poll();
+    const id = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  // Set when the demo runs, so the list shows that run rather than every match the core
+  // has ever stored. Before any run, the most recent few are shown instead.
+  const since = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     const next: Record<string, string> = {};
@@ -69,12 +93,20 @@ export default function Home() {
       }),
     );
     setHealth(next);
-    try { setCorr(await api.correlations()); } catch { /* core down */ }
+    try {
+      const all = (await api.correlations())
+        .slice()
+        .sort((a, b) => Date.parse(b.detected_at ?? "") - Date.parse(a.detected_at ?? ""));
+      setCorr(since.current === null
+        ? all.slice(0, 6)
+        : all.filter((c) => !c.detected_at || Date.parse(c.detected_at) >= since.current!));
+    } catch { /* core down */ }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
   async function run() {
+    since.current = Date.now() - 2000;
     setBusy(true); setErr(null); setPayloads([]);
     try {
       for (let i = 0; i < SCENARIO.length; i++) {
@@ -194,11 +226,28 @@ export default function Home() {
           </Panel>
         </div>
 
+        <Panel label="Warnings each firm received">
+          <div className="grid gap-3 lg:grid-cols-3">
+            {SCENARIO.map((s, i) => {
+              const peers = Math.max(0, ...(warnings[i] ?? []).map((n) => n.peer_count));
+              return (
+                <div key={s.label} data-testid={`warnings-${i}`} className="rounded-[10px] border border-line p-3">
+                  <p className="font-mono text-[12.5px] font-extrabold tracking-wide text-text-primary">Firm {i + 1}</p>
+                  <p className="mt-1 text-[14px] text-text-secondary">
+                    {warnings[i]?.length
+                      ? `Warned: up to ${peers} other firm${peers === 1 ? "" : "s"} seeing this attacker. MARSAD does not say which.`
+                      : "No warnings yet."}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+
         <p className="border-t border-line pt-3 text-[12.5px] leading-relaxed text-text-faint">
-          This demo uses made-up incidents. Right now, the scrambling we use is good enough
-          for a demo but not for real institutional data — production needs a stronger method that even
-          we couldn&apos;t reverse, with its key split across several parties so no one of them
-          can use it alone. Right now, we compare attack methods with a simple, fast check; a
+          This demo uses made-up incidents. Tokens need a key split across independent parties,
+          so no one of them can make or reverse one alone. That cryptography has not yet had
+          an independent review, so it is not ready for real institutional data. Right now, we compare attack methods with a simple, fast check; a
           production system would use a slower, more accurate and more private one.
         </p>
       </div>

@@ -11,7 +11,8 @@ The topology under test (docker-compose.yml)
 --------------------------------------------
 Each connector sits alone on its own `internal` edge network. Core sits alone on
 core_net. One container, boundary-gateway, is attached to both sides and forwards
-exactly one endpoint.
+exactly three routes: POST /v1/submissions and POST /v1/declarations, the only ways
+anything leaves a firm, and GET /v1/notices, which accepts nothing.
 
 Two controls, of deliberately different strength, and these tests keep them apart:
 
@@ -20,7 +21,7 @@ Two controls, of deliberately different strength, and these tests keep them apar
     failures and refused connections, not HTTP status codes. Asserted by
     `test_*_at_the_network_layer`.
   * **The gateway, in nginx config** — of the traffic that can reach the gateway,
-    only `POST /v1/submissions` is forwarded. Failures here are 403s. Asserted by
+    only those three routes are forwarded. Failures here are 403s. Asserted by
     `test_the_gateway_*`.
 
 Claiming the second is network-layer enforcement would be overstating it, so it is
@@ -356,7 +357,7 @@ def test_the_one_permitted_route_actually_works():
 
 @pytest.mark.parametrize("path", ["/health", "/v1/correlations", "/v1/concentration",
                                   "/v1/data/sources", "/openapi.json"])
-def test_the_gateway_refuses_every_core_endpoint_except_submissions(path):
+def test_the_gateway_refuses_every_core_endpoint_except_its_three_routes(path):
     """
     Enforced by nginx config, not by the network — named accordingly. A connector
     reaching the gateway is expected; a connector reading the core's aggregate view
@@ -364,14 +365,33 @@ def test_the_gateway_refuses_every_core_endpoint_except_submissions(path):
     """
     outcome = gateway_request("connector-almaha", "GET", path)
     assert outcome["status"] == 403, (
-        f"the gateway forwarded {path} to core: {outcome}. Only POST /v1/submissions "
-        f"may cross from an edge network."
+        f"the gateway forwarded {path} to core: {outcome}. Only submissions, "
+        f"declarations and notices may cross from an edge network."
     )
 
 
 def test_the_gateway_refuses_the_submission_endpoint_by_the_wrong_method():
     """A GET on the ingress would be a read of whatever core chose to return."""
     outcome = gateway_request("connector-almaha", "GET", "/v1/submissions")
+    assert outcome["status"] == 403, outcome
+
+
+def test_the_gateway_forwards_a_firms_request_for_its_own_notices():
+    """The positive control for the warning route: it exists and it answers."""
+    outcome = gateway_request("connector-almaha", "GET", "/v1/notices?institution_ref=psd_almaha01")
+    assert outcome["status"] == 200, outcome
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
+def test_the_notices_route_accepts_nothing_through_the_gateway(method):
+    """If anything but a read got through here, it would be a second way out of a firm."""
+    outcome = gateway_request("connector-almaha", method, "/v1/notices")
+    assert outcome["status"] == 403, outcome
+
+
+def test_the_gateway_refuses_to_read_declarations():
+    """A firm may send its own list. It must never be able to read anyone's."""
+    outcome = gateway_request("connector-almaha", "GET", "/v1/declarations")
     assert outcome["status"] == 403, outcome
 
 
@@ -415,3 +435,50 @@ def test_no_two_connectors_share_an_edge_network():
     assert not (almaha & gulfsec), (
         f"two institutions share network(s) {almaha & gulfsec}"
     )
+
+
+# ================================================================ key custodians
+
+
+def test_a_connector_cannot_reach_a_key_custodian_directly_at_the_network_layer():
+    """One path to the custodians, through a gateway that forwards evaluate and nothing else."""
+    outcome = probe("connector-almaha", "evaluator-1")
+    assert outcome["outcome"] in (DNS_FAILURE, NETWORK_FAILURE), outcome
+
+
+def test_the_core_cannot_reach_a_key_custodian_at_the_network_layer():
+    """
+    The party holding tokens must not be able to ask for more of them. A core that could
+    call an evaluator could test guesses against its own stored tokens.
+    """
+    outcome = probe("core", "evaluator-1")
+    assert outcome["outcome"] in (DNS_FAILURE, NETWORK_FAILURE), outcome
+
+
+def test_a_key_custodian_cannot_reach_the_core_at_the_network_layer():
+    # The custodian image carries no HTTP client, so this probe is a bare socket.
+    snippet = (
+        "import socket\n"
+        "try:\n"
+        "    socket.create_connection(('core', 8000), timeout=5)\n"
+        "    print('REACHED')\n"
+        "except OSError as exc:\n"
+        "    print('UNREACHABLE', type(exc).__name__)\n"
+    )
+    result = _compose("exec", "-T", "evaluator-1", "python", "-c", snippet)
+    assert result.returncode == 0, result.stderr[:400]
+    assert result.stdout.strip().startswith("UNREACHABLE"), result.stdout
+
+
+def test_the_oprf_gateway_forwards_only_evaluate():
+    snippet = (
+        "import json, httpx\n"
+        "out = []\n"
+        "for m, p in [('GET','/c1/health'),('GET','/c1/v1/oprf/metering'),"
+        "('GET','/c1/v1/oprf/evaluate'),('POST','/v1/submissions')]:\n"
+        "    out.append(httpx.request(m, 'http://oprf-gateway:8000'+p, timeout=10).status_code)\n"
+        "print(json.dumps(out))\n"
+    )
+    result = _compose("exec", "-T", "connector-almaha", "python", "-c", snippet)
+    assert result.returncode == 0, result.stderr[:400]
+    assert json.loads(result.stdout.strip().splitlines()[-1]) == [403, 403, 403, 403]

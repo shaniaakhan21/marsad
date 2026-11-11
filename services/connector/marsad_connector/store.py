@@ -20,7 +20,17 @@ from typing import Any, Protocol
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
 
-from marsad_connector.db.models import ExtractionProvenance, LocalIncident, expiry_for
+from marsad_connector.db.models import (
+    ExtractionProvenance,
+    LocalIncident,
+    OutboundDeclaration,
+    ProviderDependencyRow,
+    ReceivedNotice,
+    ReceivedProviderAlert,
+    RetentionRun,
+    expiry_for,
+)
+from marsad_connector.db.retention import purge_expired
 from marsad_connector.db.session import session_scope
 
 log = logging.getLogger("marsad.connector.store")
@@ -34,6 +44,21 @@ class EdgeStore(Protocol):
     def get(self, incident_id: str) -> Any | None: ...
     def __contains__(self, incident_id: str) -> bool: ...
     def count(self) -> int: ...
+    def set_impact(self, incident_id: str, impact: dict[str, Any],
+                   systems_affected: list[str]) -> None: ...
+    def save_notices(self, notices: list[dict[str, Any]]) -> int: ...
+    def notices(self, limit: int = 200) -> list[dict[str, Any]]: ...
+    def last_notice_at(self) -> datetime | None: ...
+    def set_dependencies(self, dependencies: list[dict[str, Any]]) -> None: ...
+    def dependencies(self) -> list[dict[str, Any]]: ...
+    def record_declaration(self, record: dict[str, Any]) -> None: ...
+    def update_declaration(self, declaration_id: str, *, status: str,
+                           http_status: int | None, core_digest: str | None) -> None: ...
+    def declarations(self, status: str | None = None) -> list[dict[str, Any]]: ...
+    def save_provider_alerts(self, alerts: list[dict[str, Any]]) -> int: ...
+    def provider_alerts(self) -> list[dict[str, Any]]: ...
+    def purge_expired(self, now: datetime | None = None) -> dict[str, Any]: ...
+    def retention_runs(self, limit: int = 50) -> list[dict[str, Any]]: ...
 
 
 class InMemoryStore:
@@ -44,6 +69,51 @@ class InMemoryStore:
     def __init__(self) -> None:
         self._incidents: dict[str, Any] = {}
         self._provenance: dict[str, list[dict[str, Any]]] = {}
+        self._notices: dict[str, dict[str, Any]] = {}
+        self._dependencies: list[dict[str, Any]] = []
+        self._declarations: dict[str, dict[str, Any]] = {}
+        self._provider_alerts: dict[str, dict[str, Any]] = {}
+
+    def set_dependencies(self, dependencies) -> None:
+        self._dependencies = list(dependencies)
+
+    def dependencies(self) -> list[dict[str, Any]]:
+        return list(self._dependencies)
+
+    def record_declaration(self, record) -> None:
+        self._declarations[record["declaration_id"]] = {
+            **record, "status": "QUEUED", "http_status": None, "core_digest": None,
+        }
+
+    def update_declaration(self, declaration_id, *, status, http_status, core_digest) -> None:
+        self._declarations[declaration_id].update(
+            status=status, http_status=http_status, core_digest=core_digest)
+
+    def declarations(self, status=None) -> list[dict[str, Any]]:
+        return [d for d in self._declarations.values() if status in (None, d["status"])]
+
+    def save_provider_alerts(self, alerts) -> int:
+        fresh = [a for a in alerts if a["alert_id"] not in self._provider_alerts]
+        self._provider_alerts.update({a["alert_id"]: a for a in fresh})
+        return len(fresh)
+
+    def provider_alerts(self) -> list[dict[str, Any]]:
+        return sorted(self._provider_alerts.values(), key=lambda a: a["ts_bucket"], reverse=True)
+
+    def save_notices(self, notices) -> int:
+        fresh = [n for n in notices if n["correlation_id"] not in self._notices]
+        for notice in fresh:
+            self._notices[notice["correlation_id"]] = notice
+        return len(fresh)
+
+    def notices(self, limit: int = 200) -> list[dict[str, Any]]:
+        ordered = sorted(self._notices.values(), key=lambda n: n["detected_at"], reverse=True)
+        return ordered[:limit]
+
+    def last_notice_at(self) -> datetime | None:
+        if not self._notices:
+            return None
+        return datetime.fromisoformat(max(n["detected_at"] for n in self._notices.values()))
 
     def save(self, incident_id, incident, provenance=None) -> None:
         self._incidents[incident_id] = incident
@@ -60,6 +130,18 @@ class InMemoryStore:
 
     def count(self) -> int:
         return len(self._incidents)
+
+    def set_impact(self, incident_id, impact, systems_affected) -> None:
+        incident = self._incidents[incident_id]
+        incident.impact = impact
+        incident.systems_affected = systems_affected
+
+    def purge_expired(self, now=None) -> dict[str, Any]:
+        """Nothing outlives this process here, so there is nothing to expire."""
+        return {"incidents_redacted": 0, "provenance_rows_deleted": 0}
+
+    def retention_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        return []
 
 
 class SqlStore:
@@ -135,6 +217,8 @@ class SqlStore:
                 raw_email=row.raw_email,
                 source=row.source,
                 confirmed_by=row.confirmed_by,
+                impact=row.impact,
+                systems_affected=row.systems_affected,
             ) if self._model else row
 
     def provenance_for(self, incident_id) -> list[dict[str, Any]]:
@@ -157,6 +241,136 @@ class SqlStore:
         with session_scope(self._factory) as session:
             return int(session.scalar(
                 sa.select(sa.func.count()).select_from(LocalIncident)) or 0)
+
+    def save_notices(self, notices) -> int:
+        """Idempotent on the notice id, so collecting twice records one notice."""
+        fresh = 0
+        with session_scope(self._factory) as session:
+            for notice in notices:
+                if session.get(ReceivedNotice, notice["correlation_id"]) is not None:
+                    continue
+                session.add(ReceivedNotice(
+                    notice_id=notice["correlation_id"], kind=notice["kind"],
+                    peer_count=notice["peer_count"], indicator_type=notice["indicator_type"],
+                    shared_techniques=list(notice["shared_techniques"]),
+                    similarity=notice["similarity"], campaign_id=notice["campaign_id"],
+                    detected_at=datetime.fromisoformat(notice["detected_at"]),
+                ))
+                fresh += 1
+        return fresh
+
+    def notices(self, limit: int = 200) -> list[dict[str, Any]]:
+        with session_scope(self._factory) as session:
+            rows = session.scalars(
+                sa.select(ReceivedNotice).order_by(ReceivedNotice.detected_at.desc()).limit(limit)
+            ).all()
+            return [
+                {"correlation_id": r.notice_id, "kind": r.kind, "peer_count": r.peer_count,
+                 "indicator_type": r.indicator_type,
+                 "shared_techniques": list(r.shared_techniques or []),
+                 "similarity": r.similarity, "campaign_id": r.campaign_id,
+                 "detected_at": r.detected_at.isoformat()}
+                for r in rows
+            ]
+
+    def last_notice_at(self) -> datetime | None:
+        with session_scope(self._factory) as session:
+            return session.scalar(sa.select(sa.func.max(ReceivedNotice.detected_at)))
+
+    def set_dependencies(self, dependencies) -> None:
+        with session_scope(self._factory) as session:
+            session.execute(sa.delete(ProviderDependencyRow))
+            session.add_all(ProviderDependencyRow(**d) for d in dependencies)
+
+    def dependencies(self) -> list[dict[str, Any]]:
+        with session_scope(self._factory) as session:
+            rows = session.scalars(
+                sa.select(ProviderDependencyRow).order_by(ProviderDependencyRow.name)).all()
+            return [{"name": r.name, "domain": r.domain,
+                     "substitutability": r.substitutability} for r in rows]
+
+    def record_declaration(self, record) -> None:
+        with session_scope(self._factory) as session:
+            session.add(OutboundDeclaration(**record))
+
+    def update_declaration(self, declaration_id, *, status, http_status, core_digest) -> None:
+        with session_scope(self._factory) as session:
+            row = session.get(OutboundDeclaration, declaration_id)
+            row.status, row.http_status, row.core_digest = status, http_status, core_digest
+
+    def declarations(self, status=None) -> list[dict[str, Any]]:
+        statement = sa.select(OutboundDeclaration).order_by(OutboundDeclaration.built_at)
+        if status is not None:
+            statement = statement.where(OutboundDeclaration.status == status)
+        with session_scope(self._factory) as session:
+            return [
+                {"declaration_id": r.declaration_id, "kind": r.kind, "payload": r.payload,
+                 "payload_digest": r.payload_digest, "tokeniser_scheme": r.tokeniser_scheme,
+                 "declared_by": r.declared_by, "status": r.status,
+                 "http_status": r.http_status, "core_digest": r.core_digest}
+                for r in session.scalars(statement)
+            ]
+
+    def save_provider_alerts(self, alerts) -> int:
+        fresh = 0
+        with session_scope(self._factory) as session:
+            for alert in alerts:
+                if session.get(ReceivedProviderAlert, alert["alert_id"]) is None:
+                    session.add(ReceivedProviderAlert(
+                        alert_id=alert["alert_id"], provider_token=alert["provider_token"],
+                        severity_band=alert["severity_band"],
+                        ts_bucket=datetime.fromisoformat(alert["ts_bucket"]),
+                    ))
+                    fresh += 1
+        return fresh
+
+    def provider_alerts(self) -> list[dict[str, Any]]:
+        with session_scope(self._factory) as session:
+            rows = session.scalars(sa.select(ReceivedProviderAlert).order_by(
+                ReceivedProviderAlert.ts_bucket.desc())).all()
+            return [{"alert_id": r.alert_id, "provider_token": r.provider_token,
+                     "severity_band": r.severity_band, "ts_bucket": r.ts_bucket.isoformat()}
+                    for r in rows]
+
+    def set_impact(self, incident_id, impact, systems_affected) -> None:
+        """Its own update, because `save` rebuilds the row and would drop its provenance."""
+        with session_scope(self._factory) as session:
+            row = session.get(LocalIncident, incident_id)
+            row.impact = impact
+            row.systems_affected = systems_affected
+
+    def purge_expired(self, now: datetime | None = None) -> dict[str, Any]:
+        """
+        Run the retention purge once and record that it ran, in one transaction.
+
+        A failure rolls the purge back and writes a FAILED row in a second transaction,
+        so the audit trail shows the gap instead of being silent about it.
+        """
+        try:
+            with session_scope(self._factory) as session:
+                result = purge_expired(session, now=now, retention_days=self._retention_days)
+                session.add(RetentionRun(
+                    retention_days=self._retention_days,
+                    incidents_redacted=result.incidents_redacted,
+                    provenance_rows_deleted=result.provenance_rows_deleted,
+                ))
+                return result.as_dict()
+        except Exception:
+            with session_scope(self._factory) as session:
+                session.add(RetentionRun(retention_days=self._retention_days, status="FAILED"))
+            raise
+
+    def retention_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        with session_scope(self._factory) as session:
+            rows = session.scalars(
+                sa.select(RetentionRun).order_by(RetentionRun.id.desc()).limit(limit)
+            ).all()
+            return [
+                {"ran_at": r.ran_at.isoformat(), "retention_days": r.retention_days,
+                 "incidents_redacted": r.incidents_redacted,
+                 "provenance_rows_deleted": r.provenance_rows_deleted, "status": r.status}
+                for r in rows
+            ]
 
 
 def provenance_from_draft(draft) -> list[dict[str, Any]]:

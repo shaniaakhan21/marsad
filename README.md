@@ -18,9 +18,11 @@ a provider pointed at a hosted vendor is refused at construction, not at request
 ![MARSAD guided demo — two firms, two languages, one attacker, and nothing sensitive crossing](docs/demo.gif)
 -->
 
-<sub>Ninety seconds, end to end: an English filing, an Arabic one on rotated
+<sub>Two minutes, end to end, in nine steps: an English filing, an Arabic one on rotated
 infrastructure, a correlation that fires on tradecraft, the k-anonymity gate holding,
-exposure priced in AED, and an injection quarantined. Reproduce it with
+exposure priced in AED, an injection quarantined, the first firm warned afterwards, a
+supplier warning every dependent firm, and a receipt verified on the ledger. Start
+from empty with `make demo-fresh`. Reproduce it with
 `make record` — see [docs/recording.md](docs/recording.md).</sub>
 
 ---
@@ -41,7 +43,7 @@ without it.
 
 | What | Result | The caveat, attached |
 |---|---|---|
-| **Tests** | **640** backend, **21** Playwright e2e, **18** network-boundary (in real containers), **8** live-model | 27 known lint findings, tracked as a ratchet |
+| **Tests** | **812** backend, **26** Playwright e2e, **28** network-boundary (in real containers), **7** real-ledger (three QBFT validators), **8** live-model | 26 known lint findings, tracked as a ratchet (ruff pinned) |
 | **Canary** | Zero planted strings reach the core — swept across every table, column and row of the live database, every API response, the OpenAPI document and every log line | The sweep is proven able to catch a leak planted in a real row; it is **not** proof against a leak nobody thought to plant |
 | **Network boundary** | A connector cannot reach the core by name or by raw IP; the core cannot reach an institution's plaintext store; two institutions cannot reach each other | Enforced by Docker networking. **Single-host caveat**: these containers share a laptop, so a container can still reach `host.docker.internal`. Recorded, not hidden |
 | **Rules vs model** — English | Deterministic **98.6%** (138/140) · model **56.4%** (79/140) | **Self-authored fixtures.** The rules were tuned against them; the model never saw them. So the comparison favours the model on paper and it still loses by 42 points |
@@ -146,7 +148,7 @@ mechanism rather than assuming it; the connector now builds an explicit
                   │                      │                 │
   ┌───────────────┴───────────────┐      │      ══════════════════════════
   │ Postgres · schema "edge"      │      │       ONLY THIS CROSSES:
-  │ narrative, analyst notes,     │      │       · keyed tokens (HMAC→OPRF)
+  │ narrative, analyst notes,     │      │       · keyed tokens (2-of-3 OPRF)
   │ raw email, extraction spans   │      │       · ATT&CK technique IDs
   │ — expire together, 90 days    │      │       · sector, size, severity band
   └───────────────────────────────┘      │       · timestamp, bucketed to the hour
@@ -197,8 +199,8 @@ path, and `test_the_sweep_reflects_tables_rather_than_trusting_the_orm` creates 
 outside the ORM and requires the sweep to find that too.
 
 ```bash
-make test                   # 640 backend
-make test-e2e               # 21 Playwright, against the real UI
+make test                   # 812 backend
+make test-e2e               # 26 Playwright, against the real UI
 make test-llm               # 8, needs a live Ollama
 make test-network           # 2, hits a real UAE government portal
 ```
@@ -216,10 +218,25 @@ Read this before believing anything above.
   The extraction fixtures and the injection corpus are **self-authored**, and the
   deterministic extractor was tuned against them. They tell you when a change makes
   things worse. They say nothing about an unseen institution's prose.
-- **HMAC, not OPRF.** Indicators are low-entropy; anyone holding the key can brute-force
-  the input. One shared key across institutions puts the holder in exactly the position
-  we promise nobody occupies. **Do not process real institutional data until this is
-  replaced.**
+- **The OPRF is built and unreviewed.** Tokens now come from a 2-of-3 RFC 9497 VOPRF
+  checked against the RFC's vectors, and HMAC remains only as a selectable prototype.
+  Shares come from a trusted-dealer ceremony and sit in software, and no independent
+  cryptography review has happened. **Do not process real institutional data until one
+  has.**
+- **The ledger is a test ledger.** Three Besu QBFT validators run on one machine from one
+  image, with `docker-compose.ledger.yml`. Without that file the core uses a hash chain in
+  its own database, labelled `reduced_fidelity`. Three validators survive one being down
+  but tolerate no Byzantine fault; four are needed for that.
+- **Three routes cross the gateway.** `POST /v1/submissions` and `POST /v1/declarations`
+  are the only ways anything leaves a firm, and each carries a typed payload A3 built:
+  incident tokens, or provider-domain tokens with a substitutability band. Provider names
+  never leave. `GET /v1/notices` lets a firm collect its own warnings and accepts nothing.
+- **The provider register needs enrolment to name anyone.** A provider appears by name
+  only once it enrols in the operator's directory, which also fixes the one pseudonym
+  allowed to report incidents for it. Its market share comes from that enrolment, and the
+  demo's single provider is fictional.
+- **The standard report layout is provisional** until CMA supplies its template, and
+  the regulator view shows no financial impact, because impact does not cross the boundary.
 - **Jaccard, not enclave.** Technique similarity needs the technique sets in the clear
   at the core — a weaker privacy position than the deployment target. Every result from
   a weaker engine self-labels `reduced_fidelity`.

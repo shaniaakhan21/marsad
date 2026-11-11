@@ -62,7 +62,12 @@ CORE_DOMAIN=core.example.org
 ACME_EMAIL=ops@example.org
 CORE_DB_PASSWORD=<32+ random chars>
 EDGE_DB_PASSWORD=<32+ random chars, different>
-TOKEN_KEY=<32+ random chars>
+WEB_ORIGIN=https://console.example.org
+CONSOLE_TOKENS=operator:<32+ random chars>,regulator:<32+ random chars>
+CONSOLE_TOKEN=<32+ random chars>
+OPRF_EPOCH=1
+OPRF_GROUP_KEY=<group_key from public-keys.json>
+OPRF_CUSTODIANS=[{"index":1,"url":"https://oprf-gateway:8443/c1","public_share":"<hex>"},...]
 EDGE_MODEL=qwen2.5:3b-instruct
 LLM_DAILY_CALL_BUDGET=200
 ENV
@@ -73,8 +78,12 @@ docker compose -f docker-compose.main.yml exec ollama ollama pull qwen2.5:3b-ins
 ```
 
 The compose file uses `${VAR:?}` guards, so it **refuses to start** rather than
-booting with a blank password. Verified locally: omitting `TOKEN_KEY` aborts with
-`required variable TOKEN_KEY is missing a value`.
+booting with a blank password. Verified locally: omitting `OPRF_EPOCH` aborts with
+`required variable OPRF_EPOCH is missing a value`.
+
+Before this step, create the key shares with
+`python scripts/oprf_keygen.py --epoch 1 --out deploy/oprf`, and issue one certificate
+per firm: `./deploy/make-certs.sh deploy/certs psd_almaha01 psd_gulfsec02 psd_emcap03`.
 
 Point `core.example.org` at the main VPS before starting Caddy; ACME needs to resolve.
 
@@ -88,17 +97,21 @@ cd /opt/marsad/deploy
 cat > .env <<'ENV'
 CORE_DOMAIN=core.example.org
 EDGE_DB_PASSWORD=<32+ random chars>
-TOKEN_KEY=<the SAME key as the main VPS>
+WEB_ORIGIN=https://console.example.org
+CONSOLE_TOKEN=<32+ random chars>
+OPRF_EPOCH=1
+OPRF_GROUP_KEY=<the same value as the main VPS>
+OPRF_CUSTODIANS=[{"index":1,"url":"https://core.example.org:8443/c1","public_share":"<hex>"},...]
 ENV
 chmod 600 .env
 
 docker compose -f docker-compose.remote.yml up -d --build
 ```
 
-`TOKEN_KEY` is shared because tokens must be comparable across institutions or
-correlation cannot fire. That is also precisely why the roadmap replaces HMAC with an
-OPRF under threshold custody before real data — see `crypto/tokeniser.py`. **Do not
-process real institutional data on this topology.**
+Every connector pins the same custodian public keys, so tokens are comparable without
+anyone holding the token key. On this demo topology all three custodians sit on the main
+VPS, which makes them one party in practice. **Do not process real institutional data on
+this topology.**
 
 ## 4. Dashboard
 
@@ -162,11 +175,11 @@ Locally, on this machine. **None of it was run on public infrastructure.**
 | Connector refuses to downgrade when its certificate is missing | same | passed |
 | Certificate subject carries a pseudonym, not a firm name | same | passed |
 | Model budget degrades instead of failing | `pytest tests/test_extraction.py` | **35 passed** |
-| Compose files parse, and refuse to start without secrets | `docker compose -f deploy/docker-compose.main.yml config` | valid; aborts without `TOKEN_KEY` |
+| Compose files parse, and refuse to start without secrets | `docker compose -f deploy/docker-compose.main.yml config` | valid; aborts without `OPRF_EPOCH` |
 | Seeder produces history and correlations | `python3 deploy/seed_history.py` | **8/8 submitted, 2 correlations** |
-| Network boundary, inside real containers | `pytest tests/test_network_boundary.py -m docker` | **18 passed, 1 skipped** |
+| Network boundary, inside real containers | `pytest tests/test_network_boundary.py -m docker` | **27 passed, 1 skipped** |
 | Canary, incl. sweep of the live seeded core database | `pytest tests/test_canary.py` + direct SQL sweep | **passed; zero plaintext in 2430 chars of live rows** |
-| Full suite | `pytest tests/` | **623 passed, 29 deselected** |
+| Full suite | `pytest tests/` | **812 passed, 45 deselected** |
 
 The canary sweep of the seeded database is the one worth repeating by hand:
 
@@ -197,10 +210,9 @@ hour bucket, and nothing else:
   containers only. Running them against two real hosts is the check that would
   actually retire the caveat in `docs/model-path-results.md` and the README about
   single-host simulation — see `test_the_single_host_limitation_is_recorded_rather_than_claimed_away`.
-- **Rate limiting under load.** The Caddy `rate_limit` directive requires a plugin
-  build (`caddy-ratelimit`); the stock `caddy:2.8-alpine` image does not include it,
-  so the Caddyfile as written needs either a custom image or an alternative limiter.
-  **This is a known gap in the artefact, not an oversight.**
+- **Rate limiting under load.** `deploy/caddy/Dockerfile` builds Caddy with the
+  `caddy-ratelimit` plugin and the Caddyfile validates against that image, but the limits
+  have not been exercised under load.
 
 ## Cost
 

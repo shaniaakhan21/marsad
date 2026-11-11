@@ -1,0 +1,13 @@
+[project]
+name = "marsad-oprf"
+version = "0.1.0"
+description = "RFC 9497 VOPRF over ristretto255 with threshold evaluation, for MARSAD tokenisation"
+requires-python = ">=3.11"
+dependencies = ["pysodium>=0.7.18"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["marsad_oprf*"]

@@ -8,13 +8,14 @@
 #
 # The local topology is unchanged from docker-compose.yml and for the same reasons —
 # each connector alone on its own network, core alone on core_net, one gateway
-# bridging them for exactly one endpoint. Caddy sits in front of that for TLS and for
+# bridging them for exactly three routes (submit, declare providers, collect one's own notices). Caddy sits in front of that for TLS and for
 # the limits a public demo needs.
 networks:
   edge_almaha: {}
   edge_gulfsec: {}
   core_net: {}
   public_net: {}
+  custodian_net: {}
 
 volumes:
   core_db_data: {}
@@ -23,11 +24,14 @@ volumes:
   caddy_data: {}
   caddy_config: {}
   ollama_models: {}
+  evaluator_1_audit: {}
+  evaluator_2_audit: {}
+  evaluator_3_audit: {}
 
 services:
   # ---------------------------------------------------------------- public edge
   caddy:
-    image: caddy:2.8-alpine
+    build: { context: ./caddy }
     restart: unless-stopped
     ports: ["80:80", "443:443", "8443:8443"]
     volumes:
@@ -39,7 +43,7 @@ services:
       CORE_DOMAIN: ${CORE_DOMAIN:?set CORE_DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
       CA_CERT: /etc/caddy/ca.crt
-    networks: [public_net, core_net]
+    networks: [public_net, core_net, custodian_net]
     depends_on: [core]
 
   # ---------------------------------------------------------------- core
@@ -66,6 +70,11 @@ services:
       MARSAD_CORE_SIMILARITY_THRESHOLD: "0.60"
       MARSAD_CORE_K_ANONYMITY: "3"
       MARSAD_CORE_STORE: sql
+      # Every connector must present a certificate naming the pseudonym it submits as.
+      MARSAD_CORE_REQUIRE_CLIENT_IDENTITY: "true"
+      MARSAD_CORE_REGISTERED_INSTITUTIONS_RAW: "psd_almaha01,psd_gulfsec02,psd_emcap03"
+      MARSAD_CORE_CORS_ORIGINS: ${WEB_ORIGIN:?set WEB_ORIGIN to the console address}
+      MARSAD_CORE_CONSOLE_TOKENS: ${CONSOLE_TOKENS:-}
       MARSAD_CORE_AUTO_CREATE_SCHEMA: "false"
       MARSAD_CORE_DATABASE_URL: "postgresql+psycopg://marsad:${CORE_DB_PASSWORD}@core-db:5432/marsad_core"
     # No published port. The only way in is through Caddy.
@@ -74,13 +83,63 @@ services:
       core-db: { condition: service_healthy }
 
   boundary-gateway:
-    build: { context: .., dockerfile: infra/Dockerfile.gateway }
+    build: { context: .., dockerfile: infra/Dockerfile.gateway-mtls }
     restart: unless-stopped
+    volumes: ["./certs:/etc/nginx/certs:ro"]
     networks:
       edge_almaha: { aliases: [boundary-gateway] }
       edge_gulfsec: { aliases: [boundary-gateway] }
       core_net: { aliases: [boundary-gateway] }
     depends_on: [core]
+
+  # ---------------------------------------------------------------- key custodians
+  # Co-located here only because this is a demo host. Three shares on one machine are
+  # one party in practice; in a pilot each evaluator runs at a different custodian.
+  oprf-gateway:
+    build: { context: .., dockerfile: infra/Dockerfile.oprf-gateway-mtls }
+    restart: unless-stopped
+    volumes: ["./certs:/etc/nginx/certs:ro"]
+    networks:
+      edge_almaha: { aliases: [oprf-gateway] }
+      edge_gulfsec: { aliases: [oprf-gateway] }
+      custodian_net: { aliases: [oprf-gateway] }
+    depends_on: [evaluator-1, evaluator-2, evaluator-3]
+
+  evaluator-1:
+    build: { context: .., dockerfile: services/evaluator/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MARSAD_EVALUATOR_SHARE_FILE: /run/marsad/custodian-1.json
+      MARSAD_EVALUATOR_AUDIT_LOG: /var/lib/marsad/audit.jsonl
+      MARSAD_EVALUATOR_REQUIRE_CLIENT_IDENTITY: "true"
+    volumes:
+      - ./oprf/custodian-1.json:/run/marsad/custodian-1.json:ro
+      - evaluator_1_audit:/var/lib/marsad
+    networks: [custodian_net]
+
+  evaluator-2:
+    build: { context: .., dockerfile: services/evaluator/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MARSAD_EVALUATOR_SHARE_FILE: /run/marsad/custodian-2.json
+      MARSAD_EVALUATOR_AUDIT_LOG: /var/lib/marsad/audit.jsonl
+      MARSAD_EVALUATOR_REQUIRE_CLIENT_IDENTITY: "true"
+    volumes:
+      - ./oprf/custodian-2.json:/run/marsad/custodian-2.json:ro
+      - evaluator_2_audit:/var/lib/marsad
+    networks: [custodian_net]
+
+  evaluator-3:
+    build: { context: .., dockerfile: services/evaluator/Dockerfile }
+    restart: unless-stopped
+    environment:
+      MARSAD_EVALUATOR_SHARE_FILE: /run/marsad/custodian-3.json
+      MARSAD_EVALUATOR_AUDIT_LOG: /var/lib/marsad/audit.jsonl
+      MARSAD_EVALUATOR_REQUIRE_CLIENT_IDENTITY: "true"
+    volumes:
+      - ./oprf/custodian-3.json:/run/marsad/custodian-3.json:ro
+      - evaluator_3_audit:/var/lib/marsad
+    networks: [custodian_net]
 
   # ---------------------------------------------------------------- the edge model
   # One model shared by the two local connectors. Never exposed publicly: it sits on
@@ -122,9 +181,16 @@ services:
       MARSAD_INSTITUTION_REF: "psd_almaha01"
       MARSAD_SECTOR: BANK
       MARSAD_SIZE_BAND: LARGE
-      MARSAD_CORE_URL: "http://boundary-gateway:8000"
-      MARSAD_TOKEN_KEY: ${TOKEN_KEY:?set TOKEN_KEY}
-      MARSAD_TOKENISER: hmac
+      MARSAD_CORE_URL: "https://boundary-gateway:8443"
+      MARSAD_CORE_CLIENT_CERT: /etc/marsad/certs/psd_almaha01.crt
+      MARSAD_CORE_CLIENT_KEY: /etc/marsad/certs/psd_almaha01.key
+      MARSAD_CORE_CA_BUNDLE: /etc/marsad/certs/ca.crt
+      MARSAD_CORS_ORIGINS: ${WEB_ORIGIN:?set WEB_ORIGIN}
+      MARSAD_CONSOLE_TOKEN: ${CONSOLE_TOKEN:-}
+      MARSAD_TOKENISER: oprf
+      MARSAD_OPRF_EPOCH: ${OPRF_EPOCH:?set OPRF_EPOCH}
+      MARSAD_OPRF_GROUP_KEY: ${OPRF_GROUP_KEY:?set OPRF_GROUP_KEY}
+      MARSAD_OPRF_CUSTODIANS: ${OPRF_CUSTODIANS:?set OPRF_CUSTODIANS}
       MARSAD_STORE: sql
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:${EDGE_DB_PASSWORD}@edge-db-almaha:5432/marsad_edge"
@@ -135,10 +201,15 @@ services:
       # The public-demo ceiling. See llm/budget.py: when it is spent, extraction
       # degrades to the deterministic path rather than failing.
       MARSAD_LLM_DAILY_CALL_BUDGET: ${LLM_DAILY_CALL_BUDGET:-200}
+    volumes:
+      - ./certs/psd_almaha01.crt:/etc/marsad/certs/psd_almaha01.crt:ro
+      - ./certs/psd_almaha01.key:/etc/marsad/certs/psd_almaha01.key:ro
+      - ./certs/ca.crt:/etc/marsad/certs/ca.crt:ro
     ports: ["8101:8000"]
     networks: [edge_almaha]
     depends_on:
       boundary-gateway: { condition: service_started }
+      oprf-gateway: { condition: service_started }
       edge-db-almaha: { condition: service_healthy }
 
   edge-db-gulfsec:
@@ -164,9 +235,16 @@ services:
       MARSAD_INSTITUTION_REF: "psd_gulfsec02"
       MARSAD_SECTOR: BROKER
       MARSAD_SIZE_BAND: MID
-      MARSAD_CORE_URL: "http://boundary-gateway:8000"
-      MARSAD_TOKEN_KEY: ${TOKEN_KEY}
-      MARSAD_TOKENISER: hmac
+      MARSAD_CORE_URL: "https://boundary-gateway:8443"
+      MARSAD_CORE_CLIENT_CERT: /etc/marsad/certs/psd_gulfsec02.crt
+      MARSAD_CORE_CLIENT_KEY: /etc/marsad/certs/psd_gulfsec02.key
+      MARSAD_CORE_CA_BUNDLE: /etc/marsad/certs/ca.crt
+      MARSAD_CORS_ORIGINS: ${WEB_ORIGIN:?set WEB_ORIGIN}
+      MARSAD_CONSOLE_TOKEN: ${CONSOLE_TOKEN:-}
+      MARSAD_TOKENISER: oprf
+      MARSAD_OPRF_EPOCH: ${OPRF_EPOCH:?set OPRF_EPOCH}
+      MARSAD_OPRF_GROUP_KEY: ${OPRF_GROUP_KEY:?set OPRF_GROUP_KEY}
+      MARSAD_OPRF_CUSTODIANS: ${OPRF_CUSTODIANS:?set OPRF_CUSTODIANS}
       MARSAD_STORE: sql
       MARSAD_AUTO_CREATE_SCHEMA: "false"
       MARSAD_DATABASE_URL: "postgresql+psycopg://marsad:${EDGE_DB_PASSWORD}@edge-db-gulfsec:5432/marsad_edge"
@@ -175,8 +253,13 @@ services:
       MARSAD_LLM_BASE_URL: "http://ollama:11434/v1"
       MARSAD_LLM_MODEL: ${EDGE_MODEL:-qwen2.5:3b-instruct}
       MARSAD_LLM_DAILY_CALL_BUDGET: ${LLM_DAILY_CALL_BUDGET:-200}
+    volumes:
+      - ./certs/psd_gulfsec02.crt:/etc/marsad/certs/psd_gulfsec02.crt:ro
+      - ./certs/psd_gulfsec02.key:/etc/marsad/certs/psd_gulfsec02.key:ro
+      - ./certs/ca.crt:/etc/marsad/certs/ca.crt:ro
     ports: ["8102:8000"]
     networks: [edge_gulfsec]
     depends_on:
       boundary-gateway: { condition: service_started }
+      oprf-gateway: { condition: service_started }
       edge-db-gulfsec: { condition: service_healthy }
