@@ -62,7 +62,7 @@ jobs:
 
       # The repo does not lint clean; the rule is a ratchet, not a gate. ruff is pinned
       # above: a count only means something against the same linter, and an unpinned
-      # ruff added rules under the baseline and failed main for months with no code change.
+      # ruff added rules under the baseline and failed main from 12 October with no code change.
       - name: Lint ratchet (must not exceed the recorded baseline)
         run: |
           BASELINE=26
