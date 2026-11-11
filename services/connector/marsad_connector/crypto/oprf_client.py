@@ -52,6 +52,7 @@ from marsad_connector.crypto.tokeniser import (
     OprfUnavailable,
     TokenTable,
     canonicalise,
+    provider_input,
 )
 
 log = logging.getLogger("marsad.connector.oprf")
@@ -159,17 +160,10 @@ async def _ask(
     return custodian.index, evaluated
 
 
-async def resolve_tokens(
-    indicators: Iterable[dict[str, Any]], config: OprfConfig,
-    client_factory: ClientFactory, *, client_label: str = "unauthenticated",
-) -> OprfTokeniser:
-    """Run the protocol for one incident and return a tokeniser A3 can use offline."""
-    pairs = _distinct_indicators(indicators)
-    table: TokenTable = {}
-    if not pairs:
-        return OprfTokeniser(table, config.scheme)
-
-    inputs = [indicator_input(t, v) for t, v in pairs]
+async def _evaluate(
+    inputs: list[bytes], config: OprfConfig, client_factory: ClientFactory, client_label: str,
+) -> list[str]:
+    """One batch through a quorum of custodians. Tokens come back in input order."""
     blinds_and_elements = [voprf.blind(i) for i in inputs]
     blinded = [element for _, element in blinds_and_elements]
     body = OprfEvaluationRequest(
@@ -188,15 +182,42 @@ async def resolve_tokens(
         )
 
     prefix = f"{config.epoch:08x}"
-    for position, (pair, data) in enumerate(zip(pairs, inputs, strict=True)):
+    tokens: list[str] = []
+    for position, data in enumerate(inputs):
         combined = combine(
             {index: evaluated[position] for index, evaluated in valid.items()}, config.threshold,
         )
         output = voprf.finalize(data, blinds_and_elements[position][0], combined)
-        table[pair] = prefix + hashlib.sha256(output).hexdigest()[:OPRF_OUTPUT_HEX]
+        tokens.append(prefix + hashlib.sha256(output).hexdigest()[:OPRF_OUTPUT_HEX])
+    log.info("oprf.resolved inputs=%d custodians_valid=%d", len(inputs), len(valid))
+    return tokens
 
-    log.info("oprf.resolved indicators=%d custodians_valid=%d", len(pairs), len(valid))
+
+async def resolve_tokens(
+    indicators: Iterable[dict[str, Any]], config: OprfConfig,
+    client_factory: ClientFactory, *, client_label: str = "unauthenticated",
+) -> OprfTokeniser:
+    """Run the protocol for one incident and return a tokeniser A3 can use offline."""
+    pairs = _distinct_indicators(indicators)
+    if not pairs:
+        return OprfTokeniser({}, config.scheme)
+    tokens = await _evaluate([indicator_input(t, v) for t, v in pairs], config,
+                             client_factory, client_label)
+    table: TokenTable = dict(zip(pairs, tokens, strict=True))
     return OprfTokeniser(table, config.scheme)
 
 
-__all__ = ["Custodian", "OprfConfig", "OprfUnavailable", "indicator_input", "resolve_tokens"]
+async def resolve_provider_tokens(
+    canonical_domains: list[str], config: OprfConfig, client_factory: ClientFactory,
+    *, client_label: str = "unauthenticated",
+) -> dict[str, str]:
+    """Tokens for provider domains, keyed by domain. Same protocol, separate input space."""
+    if not canonical_domains:
+        return {}
+    tokens = await _evaluate([provider_input(d) for d in canonical_domains], config,
+                             client_factory, client_label)
+    return dict(zip(canonical_domains, tokens, strict=True))
+
+
+__all__ = ["Custodian", "OprfConfig", "OprfUnavailable", "indicator_input",
+           "resolve_provider_tokens", "resolve_tokens"]

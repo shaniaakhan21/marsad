@@ -9,6 +9,7 @@ const CONNECTORS = (process.env.NEXT_PUBLIC_CONNECTORS ??
   "http://localhost:8101,http://localhost:8102,http://localhost:8103").split(",");
 
 export const connectors = CONNECTORS;
+export const vendorConnector = process.env.NEXT_PUBLIC_VENDOR_CONNECTOR ?? "http://localhost:8104";
 
 const TOKEN_KEY = "marsad.console.token";
 
@@ -102,6 +103,28 @@ export const api = {
 
   standardReport: (base: string, id: string) =>
     json<StandardReport>(`${base}/v1/incidents/${id}/standard-report`),
+
+  // ---- provider declarations -------------------------------------------
+  saveDependencies: (base: string, dependencies: { name: string; domain: string; substitutability: string }[]) =>
+    json<{ saved: number }>(`${base}/v1/dependencies`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dependencies }),
+    }),
+  previewDependencies: (base: string) =>
+    json<{ dependencies: { provider_token: string; substitutability: string }[] }>(
+      `${base}/v1/dependencies/preview`, { method: "POST" }),
+  publishDependencies: (base: string, declaredBy: string) =>
+    json<{ status: string }>(`${base}/v1/dependencies/publish`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ declared_by: declaredBy }),
+    }),
+  declareProviderIncident: (base: string, severity: string, declaredBy: string) =>
+    json<{ core_response: { dependents_notified: number } }>(`${base}/v1/provider-incidents`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ severity, declared_by: declaredBy }),
+    }),
+  providerAlerts: (base: string) =>
+    json<{ provider: string; severity_band: string; ts_bucket: string }[]>(`${base}/v1/provider-alerts`),
 
   // ---- audit ledger and regulator view -----------------------------------
   receiptProof: (receipt: string) => json<ReceiptProof>(`${CORE}/v1/receipts/${receipt}/proof`),

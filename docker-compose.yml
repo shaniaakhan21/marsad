@@ -6,8 +6,8 @@
 # ------------------------------------------------------------
 # Each connector sits alone on its own edge network. Core sits alone on core_net.
 # The only container attached to both sides is boundary-gateway, and it forwards
-# exactly two routes: POST /v1/submissions, the only way anything leaves a firm, and
-# GET /v1/notices, which brings a firm its own notices and accepts nothing.
+# exactly three routes. POST /v1/submissions and POST /v1/declarations are the only ways
+# anything leaves a firm; GET /v1/notices brings a firm its own notices and accepts nothing.
 #
 # What that buys, and which layer enforces it:
 #
@@ -15,7 +15,7 @@
 #   core -> connector            no route at all      (Docker, network layer)
 #   connector -> other connector no route at all      (Docker, network layer)
 #   connector -> anything but    403 at the gateway   (nginx config, infra/)
-#     those two routes
+#     those three routes
 #
 # Databases follow the same split. Core has its own Postgres on core_net; each
 # institution has its own Postgres on its own edge network. The core cannot open an
@@ -33,6 +33,7 @@ networks:
   edge_almaha: {}
   edge_gulfsec: {}
   edge_emcap: {}
+  edge_vendor: {}
   core_net: {}
   # The key custodians. No container on core_net joins this network, so the core and the
   # holders of the token key have no route to each other.
@@ -69,6 +70,9 @@ services:
       MARSAD_CORE_SIMILARITY_THRESHOLD: "0.60"
       MARSAD_CORE_K_ANONYMITY: "3"
       MARSAD_CORE_STORE: sql
+      # One fictional provider, enrolled for the demo. Its token is computed under the
+      # dev-only key shares above, so it changes if those shares are regenerated.
+      MARSAD_CORE_PROVIDER_DIRECTORY: '{"000000019c65910c7e0082a6cec3a3eb38bac4a4":{"name":"Demo KYC provider (fictional)","service":"Onboarding identity checks","market_activity_share":0.22,"owner_ref":"psd_vendor01"}}'
       # Short so a demo shows a receipt being anchored. Local chain until Besu is enabled.
       MARSAD_CORE_ANCHOR_INTERVAL_SECONDS: "20"
       MARSAD_CORE_AUTO_CREATE_SCHEMA: "false"
@@ -80,7 +84,7 @@ services:
         condition: service_healthy
 
   # The only container on both sides of the boundary. Holds no state, runs no
-  # application code, and forwards two routes.
+  # application code, and forwards three routes.
   boundary-gateway:
     build: { context: ., dockerfile: infra/Dockerfile.gateway }
     # Aliases are declared explicitly on every edge network rather than left to
@@ -95,6 +99,8 @@ services:
       edge_gulfsec:
         aliases: [boundary-gateway]
       edge_emcap:
+        aliases: [boundary-gateway]
+      edge_vendor:
         aliases: [boundary-gateway]
       core_net:
         aliases: [boundary-gateway]
@@ -137,6 +143,8 @@ services:
       edge_gulfsec:
         aliases: [oprf-gateway]
       edge_emcap:
+        aliases: [oprf-gateway]
+      edge_vendor:
         aliases: [oprf-gateway]
       custodian_net:
         aliases: [oprf-gateway]
@@ -265,6 +273,27 @@ services:
       edge-db-emcap:
         condition: service_healthy
 
+  # A third-party provider's connector: it reports its own incidents, once, to every firm
+  # that declared it. Fictional, for the demo. SQLite inside its own container keeps the
+  # demo light; it is still its own store on its own network.
+  connector-vendor:
+    build: { context: ., dockerfile: services/connector/Dockerfile }
+    environment:
+      <<: *oprf
+      MARSAD_INSTITUTION_NAME: "Demo KYC provider"
+      MARSAD_INSTITUTION_REF: "psd_vendor01"
+      MARSAD_SECTOR: PROVIDER
+      MARSAD_SIZE_BAND: MID
+      MARSAD_PROVIDER_DOMAIN: "kyc-vendor.example"
+      MARSAD_CORE_URL: "http://boundary-gateway:8000"
+      MARSAD_STORE: sql
+      MARSAD_DATABASE_URL: "sqlite:////var/lib/marsad/vendor.db"
+      MARSAD_NOTICE_POLL_INTERVAL_SECONDS: "0"
+    volumes: ["vendor_data:/var/lib/marsad"]
+    ports: ["8104:8000"]
+    networks: [edge_vendor]
+    depends_on: [boundary-gateway, oprf-gateway]
+
   # Browser-side only: NEXT_PUBLIC_* values are resolved in the user's browser
   # against published host ports, so the web container needs no route to either side.
   web:
@@ -272,6 +301,7 @@ services:
     environment:
       NEXT_PUBLIC_CORE_URL: "http://localhost:8000"
       NEXT_PUBLIC_CONNECTORS: "http://localhost:8101,http://localhost:8102,http://localhost:8103"
+      NEXT_PUBLIC_VENDOR_CONNECTOR: "http://localhost:8104"
     ports: ["3000:3000"]
 
 # Separate volumes, one per database. Never shared — a shared volume would be a
@@ -284,3 +314,4 @@ volumes:
   evaluator_1_audit: {}
   evaluator_2_audit: {}
   evaluator_3_audit: {}
+  vendor_data: {}

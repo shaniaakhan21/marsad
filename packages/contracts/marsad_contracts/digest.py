@@ -32,7 +32,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from marsad_contracts.boundary import IncidentSubmission
+from pydantic import BaseModel
 
 #: Named in every stored digest's provenance so a future change to the canonical form
 #: is a new version rather than a silent disagreement between old and new records.
@@ -51,8 +51,8 @@ def _canonical(value: Any) -> Any:
     return value
 
 
-def payload_digest(submission: IncidentSubmission) -> str:
-    """Hex SHA-256 of the submission's canonical form. Same instant, same digest."""
+def payload_digest(submission: BaseModel) -> str:
+    """Hex SHA-256 of a boundary payload's canonical form. Same instant, same digest."""
     canonical = _canonical(submission.model_dump(mode="python"))
     blob = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
                       default=str)

@@ -3,8 +3,7 @@ A firm is told when peers report the same attacker, even if it reported first.
 
 The core may not call into an institution, so a firm collects its own notices. These
 tests hold the two halves of that bargain: the warning really arrives, and adding a route
-inward did not open a route for anything else. `POST /v1/submissions` is still the only
-way data leaves a firm.
+inward did not open a route for anything else. The route accepts nothing.
 """
 
 from __future__ import annotations
@@ -181,15 +180,16 @@ def test_the_route_accepts_no_data(core):
 
 
 @pytest.mark.parametrize("config", ["boundary-gateway.conf", "boundary-gateway.mtls.conf"])
-def test_the_gateway_forwards_exactly_two_routes_and_only_one_accepts_data(config):
+def test_the_gateway_forwards_exactly_three_routes_and_notices_accept_no_data(config):
     """
-    The promise, restated: one route carries data out, one brings notices in, no others.
-    A third location in this file has to fail a build.
+    The promise, restated: submissions and provider declarations carry typed payloads out,
+    notices come in, and there are no others. A fourth location has to fail a build.
     """
     text = (ROOT / "infra" / config).read_text()
     routes = re.findall(r"location\s*=\s*(\S+)\s*\{\s*limit_except\s+(\w+)", text)
-    assert routes == [("/v1/submissions", "POST"), ("/v1/notices", "GET")]
-    assert len(re.findall(r"^\s*location\b", text, re.MULTILINE)) == 3, "two routes plus the refusal"
+    assert routes == [("/v1/submissions", "POST"), ("/v1/declarations", "POST"),
+                      ("/v1/notices", "GET")]
+    assert len(re.findall(r"^\s*location\b", text, re.MULTILINE)) == 4, "three routes plus the refusal"
 
 
 def test_the_public_site_does_not_serve_notices():

@@ -98,6 +98,17 @@
 		}
 	}
 
+	# Provider declarations. Bound to the certificate by the core.
+	@declarations {
+		method POST
+		path /v1/declarations
+	}
+	handle @declarations {
+		reverse_proxy core:8000 {
+			header_up X-Client-Cert-Subject {http.request.tls.client.subject}
+		}
+	}
+
 	# A firm collecting its own notices. Bound to the certificate by the core.
 	@notices {
 		method GET
@@ -122,6 +133,6 @@
 	}
 
 	handle {
-		respond `{"error":"mutual TLS grants submission, notices and token evaluation only"}` 403
+		respond `{"error":"mutual TLS grants submission, declarations, notices and token evaluation only"}` 403
 	}
 }

@@ -11,8 +11,8 @@
 #   * C authenticates with a CLIENT CERTIFICATE, not a shared secret. A bearer token
 #     in an environment variable is readable by anyone with the image or the logs; a
 #     client key never leaves this host.
-#   * C can send data to exactly one endpoint, POST /v1/submissions on port 8443, and
-#     read its own notices and evaluate tokens over the same port. Everything
+#   * C can send data only to POST /v1/submissions and POST /v1/declarations on port
+#     8443, and read its own notices and evaluate tokens over the same port. Everything
 #     else about core is refused at the edge — an institution has no business reading
 #     the operator's aggregate view.
 #

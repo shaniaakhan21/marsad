@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     #: Empty leaves the read API open, which /health reports. See security.py.
     console_tokens: str = ""
 
+    #: Enrolled providers, as JSON: {token: {name, service, market_activity_share,
+    #: owner_ref}}. Published by the operator from each provider's own enrolment, so a
+    #: provider's name never crosses from a firm. See services/providers.py.
+    provider_directory: str = "{}"
+
     #: Seconds between anchoring runs. 0 turns the background loop off.
     anchor_interval_seconds: int = 300
 

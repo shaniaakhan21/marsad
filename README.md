@@ -41,7 +41,7 @@ without it.
 
 | What | Result | The caveat, attached |
 |---|---|---|
-| **Tests** | **752** backend, **21** Playwright e2e, **27** network-boundary (in real containers), **7** real-ledger (three QBFT validators), **8** live-model | 27 known lint findings, tracked as a ratchet |
+| **Tests** | **807** backend, **21** Playwright e2e, **28** network-boundary (in real containers), **7** real-ledger (three QBFT validators), **8** live-model | 27 known lint findings, tracked as a ratchet |
 | **Canary** | Zero planted strings reach the core — swept across every table, column and row of the live database, every API response, the OpenAPI document and every log line | The sweep is proven able to catch a leak planted in a real row; it is **not** proof against a leak nobody thought to plant |
 | **Network boundary** | A connector cannot reach the core by name or by raw IP; the core cannot reach an institution's plaintext store; two institutions cannot reach each other | Enforced by Docker networking. **Single-host caveat**: these containers share a laptop, so a container can still reach `host.docker.internal`. Recorded, not hidden |
 | **Rules vs model** — English | Deterministic **98.6%** (138/140) · model **56.4%** (79/140) | **Self-authored fixtures.** The rules were tuned against them; the model never saw them. So the comparison favours the model on paper and it still loses by 42 points |
@@ -197,7 +197,7 @@ path, and `test_the_sweep_reflects_tables_rather_than_trusting_the_orm` creates 
 outside the ORM and requires the sweep to find that too.
 
 ```bash
-make test                   # 752 backend
+make test                   # 807 backend
 make test-e2e               # 21 Playwright, against the real UI
 make test-llm               # 8, needs a live Ollama
 make test-network           # 2, hits a real UAE government portal
@@ -225,9 +225,14 @@ Read this before believing anything above.
   image, with `docker-compose.ledger.yml`. Without that file the core uses a hash chain in
   its own database, labelled `reduced_fidelity`. Three validators survive one being down
   but tolerate no Byzantine fault; four are needed for that.
-- **Two routes cross the gateway, and one carries data.** `POST /v1/submissions` is the
-  only way anything leaves a firm. `GET /v1/notices` lets a firm collect its own rung-0
-  warnings, because the core may not call in; it takes a pseudonym and a timestamp.
+- **Three routes cross the gateway.** `POST /v1/submissions` and `POST /v1/declarations`
+  are the only ways anything leaves a firm, and each carries a typed payload A3 built:
+  incident tokens, or provider-domain tokens with a substitutability band. Provider names
+  never leave. `GET /v1/notices` lets a firm collect its own warnings and accepts nothing.
+- **The provider register needs enrolment to name anyone.** A provider appears by name
+  only once it enrols in the operator's directory, which also fixes the one pseudonym
+  allowed to report incidents for it. Its market share comes from that enrolment, and the
+  demo's single provider is fictional.
 - **The standard report layout is provisional** until CMA supplies its template, and
   the regulator view shows no financial impact, because impact does not cross the boundary.
 - **Jaccard, not enclave.** Technique similarity needs the technique sets in the clear

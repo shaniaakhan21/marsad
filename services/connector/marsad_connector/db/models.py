@@ -261,6 +261,54 @@ class ReceivedNotice(EdgeBase):
     received_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
 
+class ProviderDependencyRow(EdgeBase):
+    """
+    A provider this firm relies on. The name and domain exist here and nowhere else;
+    only a token of the domain ever crosses.
+    """
+
+    __tablename__ = "provider_dependencies"
+
+    domain: Mapped[str] = mapped_column(sa.String(253), primary_key=True)
+    name: Mapped[str] = mapped_column(sa.String(200))
+    substitutability: Mapped[str] = mapped_column(sa.String(16))
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
+class OutboundDeclaration(EdgeBase):
+    """
+    A declaration this firm sent or is about to send, recorded before it leaves.
+
+    The same rule as a submission: there is no moment at which something has crossed and
+    no record of it exists. QUEUED means it may not have arrived, and it is resent as is.
+    """
+
+    __tablename__ = "outbound_declarations"
+
+    declaration_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(sa.String(32))
+    payload: Mapped[dict[str, Any]] = mapped_column(sa.JSON)
+    payload_digest: Mapped[str] = mapped_column(sa.String(64))
+    tokeniser_scheme: Mapped[str] = mapped_column(sa.String(64))
+    declared_by: Mapped[str] = mapped_column(sa.String(128))
+    built_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+    status: Mapped[str] = mapped_column(sa.String(16), default="QUEUED")
+    http_status: Mapped[int | None] = mapped_column(sa.Integer, default=None)
+    core_digest: Mapped[str | None] = mapped_column(sa.String(64), default=None)
+
+
+class ReceivedProviderAlert(EdgeBase):
+    """A provider this firm declared has reported an incident."""
+
+    __tablename__ = "received_provider_alerts"
+
+    alert_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    provider_token: Mapped[str] = mapped_column(sa.String(64))
+    severity_band: Mapped[str] = mapped_column(sa.String(16))
+    ts_bucket: Mapped[datetime] = mapped_column(UtcDateTime)
+    received_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
 def expiry_for(created_at: datetime, retention_days: int) -> datetime:
     """The one place a retention deadline is computed. Arithmetic, not judgement."""
     if created_at.tzinfo is None:
@@ -269,7 +317,8 @@ def expiry_for(created_at: datetime, retention_days: int) -> datetime:
 
 
 __all__ = [
-    "ExtractionProvenance", "LocalIncident", "OutboundSubmission", "ReceivedNotice", "RetentionRun",
+    "ExtractionProvenance", "LocalIncident", "OutboundDeclaration", "OutboundSubmission", "ProviderDependencyRow",
+    "ReceivedNotice", "ReceivedProviderAlert", "RetentionRun",
     "SubmissionAttempt",
     "expiry_for",
 ]

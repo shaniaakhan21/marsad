@@ -2,14 +2,22 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from marsad_contracts.boundary import IncidentSubmission
+from marsad_contracts.boundary import (
+    Declaration,
+    DependencyDeclaration,
+    IncidentSubmission,
+    ProviderAlert,
+    ProviderIncidentDeclaration,
+)
+from marsad_contracts.digest import payload_digest
 
 from marsad_core.config import settings
 from marsad_core.data import fetchers as fx
@@ -26,6 +34,7 @@ from marsad_core.security import (
     console_role,
     parse_origins,
 )
+from marsad_core.services import providers as provider_service
 from marsad_core.services import regulator as regulator_view
 from marsad_core.services.concentration import (
     ProviderDependency,
@@ -117,6 +126,7 @@ async def lifespan(_: FastAPI):
     )
     STATE["hits"] = []
     STATE["deps"] = list(SEED_DEPENDENCIES)
+    STATE["directory"] = provider_service.parse_directory(cfg.provider_directory)
 
     # The store of record. The engine's token index is a cache rebuilt from it — see
     # store.py. A core that restarted without rehydrating would find no matches
@@ -249,7 +259,57 @@ async def notices(
         for ref, notice in engine.notices_for(hit)
         if ref == institution_ref
     ]
-    return {"notices": [n.model_dump(mode="json") for n in out[:MAX_NOTICES_PER_POLL]]}
+    return {
+        "notices": [n.model_dump(mode="json") for n in out[:MAX_NOTICES_PER_POLL]],
+        "provider_alerts": _provider_alerts_for(institution_ref),
+    }
+
+
+def _provider_alerts_for(institution_ref: str) -> list[dict]:
+    """Recent incidents at providers this firm declared. Ids differ per firm, as for notices."""
+    store = STATE["store"]
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        days=provider_service.PROVIDER_ALERT_WINDOW_DAYS)
+    return [
+        ProviderAlert(
+            alert_id=hashlib.sha256(
+                f"{d.declaration_id}:{institution_ref}".encode()).hexdigest()[:32],
+            provider_token=d.provider_token, severity_band=d.severity_band,
+            ts_bucket=d.ts_bucket,
+        ).model_dump(mode="json")
+        for d in store.provider_incidents_for(store.tokens_declared_by(institution_ref), cutoff)
+    ]
+
+
+@app.post("/v1/declarations")
+async def declare(
+    declaration: Declaration,
+    certified: Annotated[str | None, Depends(connector_identity)],
+):
+    """
+    A firm's provider list, or an enrolled provider's incident. Tokens and bands only.
+
+    A provider incident is accepted only from the pseudonym the directory names as that
+    provider. Otherwise any participant could warn the market of an outage that never
+    happened, at a provider it has nothing to do with.
+    """
+    assert_bound_to(certified, declaration.institution_ref)
+    store = STATE["store"]
+    digest = payload_digest(declaration)
+
+    if isinstance(declaration, DependencyDeclaration):
+        applied = store.replace_dependencies(declaration)
+        return {"accepted": True, "applied": applied, "payload_digest": digest}
+
+    assert isinstance(declaration, ProviderIncidentDeclaration)
+    entry = STATE["directory"].get(declaration.provider_token)
+    if entry is None or entry.owner_ref != declaration.institution_ref:
+        log.warning("core.provider_incident_refused claimed_by=%s", declaration.institution_ref)
+        raise HTTPException(403, "this pseudonym is not enrolled as that provider")
+    store.save_provider_incident(declaration)
+    # The one thing a provider learns: how many firms rely on it, never which.
+    return {"accepted": True, "payload_digest": digest,
+            "dependents_notified": store.dependents_of(declaration.provider_token)}
 
 
 @app.get("/v1/correlations", dependencies=[Depends(console_role)])
@@ -291,7 +351,12 @@ async def concentration(total_participants: int | None = None):
     the number. A score of CRITICAL at 1.2% coverage is a finding about three
     firms, not about the market, and the response says so.
     """
-    deps = STATE["deps"]
+    # What firms declared replaces the illustrative seed as soon as any of it is
+    # publishable. Until then the seed is shown, and the response says that it is.
+    declared, held_back = provider_service.declared_dependencies(
+        STATE["store"].dependency_rows(), STATE["directory"], settings().k_anonymity,
+    )
+    deps = declared or STATE["deps"]
     enrolled = {ref for d in deps for ref in d.dependent_refs}
     total = total_participants or len(enrolled) or 1
     licensed = od.SECTOR_POPULATION["CMA_LICENSED"]["n"]
@@ -322,6 +387,8 @@ async def concentration(total_participants: int | None = None):
             f"It becomes a market-wide picture as more firms join."
         ),
         "providers": out,
+        "data_basis": "DECLARED" if declared else "ILLUSTRATIVE_SEED",
+        "declarations_held_back": held_back,
         "basis": od.market_basis(),
     }
 

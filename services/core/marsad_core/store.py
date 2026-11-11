@@ -21,17 +21,27 @@ process loses nothing; losing the database loses everything.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Protocol
 
 import sqlalchemy as sa
-from marsad_contracts.boundary import CorrelationKind, IncidentSubmission, IndicatorType
+from marsad_contracts.boundary import (
+    CorrelationKind,
+    DependencyDeclaration,
+    IncidentSubmission,
+    IndicatorType,
+    ProviderIncidentDeclaration,
+)
 from marsad_contracts.digest import payload_digest
 from sqlalchemy.orm import Session, sessionmaker
 
 from marsad_core.db.models import (
     Correlation,
     CorrelationMember,
+    DeclarationSequence,
+    DeclaredDependency,
+    ProviderIncident,
     Submission,
     SubmissionToken,
 )
@@ -68,6 +78,13 @@ class SubmissionStore(Protocol):
     def all_correlations(self) -> list[CorrelationHit]: ...
     def submission_count(self) -> int: ...
     def correlation_count(self) -> int: ...
+    def replace_dependencies(self, declaration: DependencyDeclaration) -> bool: ...
+    def dependency_rows(self) -> list[tuple[str, str, str]]: ...
+    def tokens_declared_by(self, institution_ref: str) -> set[str]: ...
+    def dependents_of(self, provider_token: str) -> int: ...
+    def save_provider_incident(self, declaration: ProviderIncidentDeclaration) -> None: ...
+    def provider_incidents_for(self, tokens: set[str],
+                               since: datetime) -> list[ProviderIncidentDeclaration]: ...
 
 
 class InMemoryStore:
@@ -79,6 +96,34 @@ class InMemoryStore:
         self._submissions: dict[str, IncidentSubmission] = {}
         self._digests: dict[str, str] = {}
         self._hits: list[CorrelationHit] = []
+        self._dependencies: dict[str, DependencyDeclaration] = {}
+        self._provider_incidents: dict[str, tuple[ProviderIncidentDeclaration, datetime]] = {}
+
+    def replace_dependencies(self, declaration: DependencyDeclaration) -> bool:
+        held = self._dependencies.get(declaration.institution_ref)
+        if held is not None and held.sequence >= declaration.sequence:
+            return False
+        self._dependencies[declaration.institution_ref] = declaration
+        return True
+
+    def dependency_rows(self) -> list[tuple[str, str, str]]:
+        return [(ref, d.provider_token, str(d.substitutability))
+                for ref, held in self._dependencies.items() for d in held.dependencies]
+
+    def tokens_declared_by(self, institution_ref: str) -> set[str]:
+        held = self._dependencies.get(institution_ref)
+        return {d.provider_token for d in held.dependencies} if held else set()
+
+    def dependents_of(self, provider_token: str) -> int:
+        return sum(token == provider_token for _, token, _ in self.dependency_rows())
+
+    def save_provider_incident(self, declaration: ProviderIncidentDeclaration) -> None:
+        self._provider_incidents.setdefault(
+            declaration.declaration_id, (declaration, datetime.now(timezone.utc)))
+
+    def provider_incidents_for(self, tokens, since) -> list[ProviderIncidentDeclaration]:
+        return [d for d, at in self._provider_incidents.values()
+                if d.provider_token in tokens and at >= since]
 
     def save_submission(self, submission: IncidentSubmission) -> str:
         self._submissions.setdefault(submission.submission_id, submission)
@@ -156,6 +201,64 @@ class SqlStore:
                 ],
             ))
         return digest
+
+    def replace_dependencies(self, declaration: DependencyDeclaration) -> bool:
+        """The firm's whole list, atomically. False if a newer list is already held."""
+        ref = declaration.institution_ref
+        with session_scope(self._factory) as session:
+            held = session.get(DeclarationSequence, ref)
+            if held is not None and held.sequence >= declaration.sequence:
+                return False
+            session.execute(sa.delete(DeclaredDependency).where(
+                DeclaredDependency.institution_ref == ref))
+            session.merge(DeclarationSequence(institution_ref=ref, sequence=declaration.sequence))
+            session.add_all(
+                DeclaredDependency(institution_ref=ref, provider_token=d.provider_token,
+                                   substitutability=_enum_value(d.substitutability),
+                                   sequence=declaration.sequence)
+                for d in declaration.dependencies
+            )
+        return True
+
+    def dependency_rows(self) -> list[tuple[str, str, str]]:
+        with session_scope(self._factory) as session:
+            return [(r.institution_ref, r.provider_token, r.substitutability)
+                    for r in session.scalars(sa.select(DeclaredDependency))]
+
+    def tokens_declared_by(self, institution_ref: str) -> set[str]:
+        with session_scope(self._factory) as session:
+            return set(session.scalars(sa.select(DeclaredDependency.provider_token).where(
+                DeclaredDependency.institution_ref == institution_ref)))
+
+    def dependents_of(self, provider_token: str) -> int:
+        with session_scope(self._factory) as session:
+            return int(session.scalar(sa.select(sa.func.count()).select_from(DeclaredDependency)
+                       .where(DeclaredDependency.provider_token == provider_token)) or 0)
+
+    def save_provider_incident(self, declaration: ProviderIncidentDeclaration) -> None:
+        with session_scope(self._factory) as session:
+            if session.get(ProviderIncident, declaration.declaration_id) is None:
+                session.add(ProviderIncident(
+                    declaration_id=declaration.declaration_id,
+                    institution_ref=declaration.institution_ref,
+                    provider_token=declaration.provider_token,
+                    severity_band=_enum_value(declaration.severity_band),
+                    ts_bucket=declaration.ts_bucket,
+                ))
+
+    def provider_incidents_for(self, tokens, since) -> list[ProviderIncidentDeclaration]:
+        if not tokens:
+            return []
+        with session_scope(self._factory) as session:
+            rows = session.scalars(sa.select(ProviderIncident).where(
+                ProviderIncident.provider_token.in_(tokens),
+                ProviderIncident.received_at >= since,
+            )).all()
+            return [ProviderIncidentDeclaration(
+                declaration_id=r.declaration_id, institution_ref=r.institution_ref,
+                provider_token=r.provider_token, severity_band=r.severity_band,
+                ts_bucket=r.ts_bucket,
+            ) for r in rows]
 
     def save_correlations(self, hits: list[CorrelationHit]) -> None:
         if not hits:

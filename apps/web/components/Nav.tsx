@@ -10,8 +10,9 @@ const TABS = [
   { href: "/", n: "01", label: "Operations", hint: "Watch three firms warn each other, live" },
   { href: "/report", n: "02", label: "Report & guardrails", hint: "File a report and check every deadline" },
   { href: "/exposure", n: "03", label: "Systemic exposure", hint: "Which shared provider is riskiest, in AED" },
-  { href: "/regulator", n: "04", label: "Regulator view", hint: "The market-wide picture, with no firm in it" },
-  { href: "/verify", n: "05", label: "Verify a receipt", hint: "Check a report was anchored and never changed" },
+  { href: "/providers", n: "04", label: "Shared providers", hint: "Declare suppliers once; a supplier warns every firm" },
+  { href: "/regulator", n: "05", label: "Regulator view", hint: "The market-wide picture, with no firm in it" },
+  { href: "/verify", n: "06", label: "Verify a receipt", hint: "Check a report was anchored and never changed" },
 ];
 
 /** Same three firms as the Operations scenario — display only, read via the existing connector health endpoint. */

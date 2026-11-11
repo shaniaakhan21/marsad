@@ -27,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import unicodedata
 from abc import ABC, abstractmethod
 
@@ -87,6 +88,31 @@ def canonicalise(value: str, indicator_type: IndicatorType) -> str:
     return v
 
 
+#: Separates provider tokens from indicator tokens. Without it, a provider's domain and
+#: the same domain seen in an attack would tokenise alike, and the core could link a
+#: firm's supplier list to its incidents.
+PROVIDER_DOMAIN_SEPARATOR = b"PROVIDER\x1f"
+
+_PROVIDER_DOMAIN = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$")
+
+
+def canonical_provider(domain: str) -> str:
+    """
+    A provider's identity is its internet domain, in canonical form.
+
+    A domain rather than a name, because two firms will write a name differently and
+    their tokens would never meet, with no error to notice.
+    """
+    canonical = canonicalise(domain, IndicatorType.DOMAIN)
+    if not _PROVIDER_DOMAIN.match(canonical):
+        raise ValueError("a provider is identified by its internet domain")
+    return canonical
+
+
+def provider_input(canonical: str) -> bytes:
+    return PROVIDER_DOMAIN_SEPARATOR + canonical.encode()
+
+
 class Tokeniser(ABC):
     """Contract every tokenisation strategy must satisfy."""
 
@@ -127,6 +153,9 @@ class HmacTokeniser(Tokeniser):
         # cannot collide into a false correlation.
         msg = f"{indicator_type.value}\x1f{canonical}".encode()
         return hmac.new(self._key, msg, hashlib.sha256).hexdigest()[:TOKEN_LEN]
+
+    def tokenise_provider(self, canonical: str) -> str:
+        return hmac.new(self._key, provider_input(canonical), hashlib.sha256).hexdigest()[:TOKEN_LEN]
 
 
 class OprfTokeniser(Tokeniser):

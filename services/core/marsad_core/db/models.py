@@ -137,6 +137,43 @@ class CorrelationMember(CoreBase):
     correlation: Mapped[Correlation] = relationship(back_populates="members")
 
 
+class DeclaredDependency(CoreBase):
+    """
+    One firm's reliance on one provider, as a keyed token. The core can count firms per
+    token. It cannot read which provider that is unless the provider enrolled itself.
+    """
+
+    __tablename__ = "declared_dependencies"
+
+    institution_ref: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    provider_token: Mapped[str] = mapped_column(sa.String(64), primary_key=True, index=True)
+    substitutability: Mapped[str] = mapped_column(sa.String(16))
+    sequence: Mapped[int] = mapped_column(sa.Integer)
+    declared_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
+class DeclarationSequence(CoreBase):
+    """The newest list seen per firm, kept so an empty newer list still beats an older one."""
+
+    __tablename__ = "declaration_sequences"
+
+    institution_ref: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    sequence: Mapped[int] = mapped_column(sa.Integer)
+
+
+class ProviderIncident(CoreBase):
+    """An enrolled provider reporting an incident. Band and hour, nothing more."""
+
+    __tablename__ = "provider_incidents"
+
+    declaration_id: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    institution_ref: Mapped[str] = mapped_column(sa.String(64))
+    provider_token: Mapped[str] = mapped_column(sa.String(64), index=True)
+    severity_band: Mapped[str] = mapped_column(sa.String(16))
+    ts_bucket: Mapped[datetime] = mapped_column(UtcDateTime)
+    received_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
 class AnchorBatch(CoreBase):
     """
     One Merkle tree of receipts, and where its root was anchored.
@@ -196,6 +233,7 @@ class LocalLedgerEntry(CoreBase):
 
 
 __all__ = [
-    "AnchorBatch", "AnchorLeaf", "Correlation", "CorrelationMember", "LocalLedgerEntry",
-    "Submission", "SubmissionToken",
+    "AnchorBatch", "AnchorLeaf", "Correlation", "CorrelationMember", "DeclarationSequence",
+    "DeclaredDependency", "LocalLedgerEntry", "ProviderIncident", "Submission",
+    "SubmissionToken",
 ]

@@ -11,8 +11,8 @@ The topology under test (docker-compose.yml)
 --------------------------------------------
 Each connector sits alone on its own `internal` edge network. Core sits alone on
 core_net. One container, boundary-gateway, is attached to both sides and forwards
-exactly two routes: POST /v1/submissions, the only way anything leaves a firm, and
-GET /v1/notices, which brings a firm its own notices and accepts nothing.
+exactly three routes: POST /v1/submissions and POST /v1/declarations, the only ways
+anything leaves a firm, and GET /v1/notices, which accepts nothing.
 
 Two controls, of deliberately different strength, and these tests keep them apart:
 
@@ -21,7 +21,7 @@ Two controls, of deliberately different strength, and these tests keep them apar
     failures and refused connections, not HTTP status codes. Asserted by
     `test_*_at_the_network_layer`.
   * **The gateway, in nginx config** — of the traffic that can reach the gateway,
-    only those two routes are forwarded. Failures here are 403s. Asserted by
+    only those three routes are forwarded. Failures here are 403s. Asserted by
     `test_the_gateway_*`.
 
 Claiming the second is network-layer enforcement would be overstating it, so it is
@@ -357,7 +357,7 @@ def test_the_one_permitted_route_actually_works():
 
 @pytest.mark.parametrize("path", ["/health", "/v1/correlations", "/v1/concentration",
                                   "/v1/data/sources", "/openapi.json"])
-def test_the_gateway_refuses_every_core_endpoint_except_its_two_routes(path):
+def test_the_gateway_refuses_every_core_endpoint_except_its_three_routes(path):
     """
     Enforced by nginx config, not by the network — named accordingly. A connector
     reaching the gateway is expected; a connector reading the core's aggregate view
@@ -365,8 +365,8 @@ def test_the_gateway_refuses_every_core_endpoint_except_its_two_routes(path):
     """
     outcome = gateway_request("connector-almaha", "GET", path)
     assert outcome["status"] == 403, (
-        f"the gateway forwarded {path} to core: {outcome}. Only POST /v1/submissions "
-        f"and GET /v1/notices may cross from an edge network."
+        f"the gateway forwarded {path} to core: {outcome}. Only submissions, "
+        f"declarations and notices may cross from an edge network."
     )
 
 
@@ -386,6 +386,12 @@ def test_the_gateway_forwards_a_firms_request_for_its_own_notices():
 def test_the_notices_route_accepts_nothing_through_the_gateway(method):
     """If anything but a read got through here, it would be a second way out of a firm."""
     outcome = gateway_request("connector-almaha", method, "/v1/notices")
+    assert outcome["status"] == 403, outcome
+
+
+def test_the_gateway_refuses_to_read_declarations():
+    """A firm may send its own list. It must never be able to read anyone's."""
+    outcome = gateway_request("connector-almaha", "GET", "/v1/declarations")
     assert outcome["status"] == 403, outcome
 
 

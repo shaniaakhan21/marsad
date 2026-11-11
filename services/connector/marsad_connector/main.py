@@ -4,8 +4,9 @@ MARSAD connector — runs inside an institution's perimeter.
 This process is the only one that ever holds narrative, plaintext indicators or
 PII. Exactly one function, `_deliver`, sends the core anything about an incident, and
 it sends only an IncidentSubmission that A3 built, that was recorded before it left, and
-that A3 has re-checked against that record. `collect_notices` is the one other call to
-the core: a read that carries this firm's pseudonym and a timestamp, and nothing else.
+that A3 has re-checked against that record. `_deliver_declaration` does the same for a
+provider declaration, which carries tokens and closed vocabularies. `collect_notices` is
+the one other call to the core: a read carrying a pseudonym and a timestamp.
 """
 from __future__ import annotations
 
@@ -27,9 +28,13 @@ from fastapi.responses import JSONResponse
 from marsad_contracts.boundary import (
     CorrelationNotice,
     IncidentSubmission,
+    ProviderAlert,
     Sector,
+    SeverityBand,
     SizeBand,
+    SubstitutabilityBand,
 )
+from marsad_contracts.digest import payload_digest
 from pydantic import BaseModel, Field, ValidationError
 
 from marsad_connector.agents.a2_extract import ExtractionAgent, ExtractionDraft
@@ -39,10 +44,12 @@ from marsad_connector.agents.a5_report import ImpactAssessment, build_report
 from marsad_connector.agents.a14_supervisor import inspect as inspect_for_injection
 from marsad_connector.config import settings
 from marsad_connector.crypto.tokeniser import (
+    HmacTokeniser,
     OprfUnavailable,
     Tokeniser,
     TokenNotEvaluated,
     build_tokeniser,
+    canonical_provider,
 )
 from marsad_connector.db.session import build_engine, build_sessionmaker, create_all
 from marsad_connector.llm.budget import CallBudget
@@ -307,6 +314,106 @@ async def health():
 async def retention_audit(limit: int = 50):
     """Every scheduled purge and what it did, newest first. Counts only, never text."""
     return LOCAL.retention_runs(limit=limit)
+
+
+class DependencyIn(BaseModel):
+    """Held locally. Only a token of the domain ever leaves."""
+
+    name: str = Field(min_length=1, max_length=200)
+    domain: str = Field(min_length=3, max_length=253)
+    substitutability: SubstitutabilityBand
+
+
+class DependenciesIn(BaseModel):
+    dependencies: list[DependencyIn] = Field(max_length=256)
+
+
+class DeclareIn(BaseModel):
+    """Sharing is a person's decision, so a declaration carries a person's name."""
+
+    declared_by: str = Field(min_length=1, max_length=128)
+
+
+class ProviderIncidentIn(DeclareIn):
+    severity: SeverityBand
+    detected_at: datetime | None = None
+
+
+@app.get("/v1/dependencies")
+async def list_dependencies():
+    """This firm's providers, with names. Local only."""
+    return LOCAL.dependencies()
+
+
+@app.post("/v1/dependencies")
+async def save_dependencies(body: DependenciesIn):
+    """Save the list here. Nothing leaves until someone chooses to publish it."""
+    rows: dict[str, dict] = {}
+    for dep in body.dependencies:
+        try:
+            domain = canonical_provider(dep.domain)
+        except ValueError as exc:
+            raise HTTPException(422, f"{dep.name}: {exc}") from exc
+        rows[domain] = {"name": dep.name, "domain": domain,
+                        "substitutability": dep.substitutability.value}
+    LOCAL.set_dependencies(list(rows.values()))
+    return {"saved": len(rows), "published": False}
+
+
+@app.post("/v1/dependencies/preview")
+async def preview_dependencies():
+    """Exactly what publishing would send, without sending it."""
+    return (await _build_dependency_declaration())[0].model_dump(mode="json")
+
+
+@app.post("/v1/dependencies/publish")
+async def publish_dependencies(body: DeclareIn):
+    """Send this firm's list, as tokens. Replaces whatever it declared before."""
+    declaration, scheme = await _build_dependency_declaration()
+    return await _send_declaration(declaration, scheme, body.declared_by)
+
+
+@app.post("/v1/provider-incidents")
+async def declare_provider_incident(body: ProviderIncidentIn):
+    """An enrolled provider declares an incident once, to every firm that relies on it."""
+    cfg = settings()
+    if not cfg.provider_domain:
+        raise HTTPException(409, "this connector is not configured as a provider")
+    domain = canonical_provider(cfg.provider_domain)
+    tokens, scheme = await _provider_tokens([domain])
+    try:
+        declaration = RedactionAgent.build_provider_incident(
+            domain, tokens[domain], institution_ref=cfg.institution_ref,
+            severity=body.severity.value,
+            detected_at=body.detected_at or datetime.now(timezone.utc),
+        )
+    except RedactionError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return await _send_declaration(declaration, scheme, body.declared_by)
+
+
+@app.get("/v1/declarations")
+async def list_declarations():
+    """The firm's record of every declaration it sent. Tokens only."""
+    return LOCAL.declarations()
+
+
+@app.post("/v1/declarations/retry")
+async def retry_declarations():
+    """Resend queued declarations exactly as recorded. Never rebuilds them."""
+    results = []
+    for record in LOCAL.declarations(status="QUEUED"):
+        outcome = await _deliver_declaration(record)
+        results.append({"declaration_id": record["declaration_id"], "status": outcome["status"]})
+    return {"attempted": len(results), "results": results}
+
+
+@app.get("/v1/provider-alerts")
+async def list_provider_alerts():
+    """Providers this firm declared that have reported an incident, named from its own list."""
+    names = await _names_by_token()
+    return [{**alert, "provider": names.get(alert["provider_token"], "A provider you declared")}
+            for alert in LOCAL.provider_alerts()]
 
 
 @app.get("/v1/notices")
@@ -706,15 +813,19 @@ async def collect_notices() -> dict:
         async with _core_client(cfg) as client:
             response = await client.get(f"{cfg.core_url}/v1/notices", params=params)
         response.raise_for_status()
+        body = response.json()
         notices = [
-            CorrelationNotice.model_validate(n).model_dump(mode="json")
-            for n in response.json()["notices"]
+            CorrelationNotice.model_validate(n).model_dump(mode="json") for n in body["notices"]
+        ]
+        alerts = [
+            ProviderAlert.model_validate(a).model_dump(mode="json")
+            for a in body.get("provider_alerts", [])
         ]
     except (httpx.HTTPError, ValidationError, ValueError, KeyError, TypeError) as exc:
         log.warning("connector.notices_unavailable err=%s", type(exc).__name__)
         return {"collected": False, "new_notices": 0, "error": type(exc).__name__}
 
-    fresh = LOCAL.save_notices(notices)
+    fresh = LOCAL.save_notices(notices) + LOCAL.save_provider_alerts(alerts)
     if fresh:
         log.info("connector.notices_received new=%d", fresh)
     return {"collected": True, "new_notices": fresh}
@@ -776,6 +887,101 @@ async def _tokeniser_for(iid: str) -> Tokeniser:
         LOCAL.get(iid).indicators, OPRF_CONFIG, _custodian_client,
         client_label=cfg.institution_ref,
     )
+
+
+async def _provider_tokens(domains: list[str]) -> tuple[dict[str, str], str]:
+    """Tokens for provider domains, fetched first so A3 stays offline, as for incidents."""
+    cfg = settings()
+    if OPRF_CONFIG is None:
+        tokeniser = HmacTokeniser()
+        return {d: tokeniser.tokenise_provider(d) for d in domains}, tokeniser.scheme
+    from marsad_connector.crypto.oprf_client import resolve_provider_tokens
+
+    try:
+        tokens = await resolve_provider_tokens(
+            domains, OPRF_CONFIG, _custodian_client, client_label=cfg.institution_ref,
+        )
+    except OprfUnavailable as exc:
+        raise HTTPException(503, f"tokens unavailable, nothing was sent: {exc}") from exc
+    return tokens, OPRF_CONFIG.scheme
+
+
+async def _names_by_token() -> dict[str, str]:
+    """Which provider each token means, computed here. The core could never say."""
+    dependencies = LOCAL.dependencies()
+    try:
+        tokens, _ = await _provider_tokens([d["domain"] for d in dependencies])
+    except HTTPException:
+        return {}
+    return {tokens[d["domain"]]: d["name"] for d in dependencies}
+
+
+async def _build_dependency_declaration():
+    dependencies = LOCAL.dependencies()
+    tokens, scheme = await _provider_tokens([d["domain"] for d in dependencies])
+    sequence = sum(d["kind"] == "DEPENDENCY" for d in LOCAL.declarations()) + 1
+    try:
+        return RedactionAgent.build_dependency_declaration(
+            dependencies, tokens, institution_ref=settings().institution_ref, sequence=sequence,
+        ), scheme
+    except RedactionError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+async def _send_declaration(declaration, scheme: str, declared_by: str) -> dict:
+    """Record, then send. The record exists before anything leaves, as for submissions."""
+    record = {
+        "declaration_id": declaration.declaration_id, "kind": declaration.kind,
+        "payload": declaration.model_dump(mode="json"),
+        "payload_digest": payload_digest(declaration), "tokeniser_scheme": scheme,
+        "declared_by": declared_by,
+    }
+    LOCAL.record_declaration(record)
+    outcome = await _deliver_declaration(record)
+    if outcome["status"] == "QUEUED":
+        raise HTTPException(503, f"core unreachable; declaration {record['declaration_id']} "
+                                 f"queued locally")
+    if outcome["status"] != "ACCEPTED":
+        raise HTTPException(502, f"declaration {outcome['status'].lower()}")
+    return outcome
+
+
+async def _deliver_declaration(record: dict) -> dict:
+    """Send one recorded declaration, after A3 has re-checked it against its digest."""
+    declaration_id = record["declaration_id"]
+
+    def finish(status: str, http_status: int | None = None, core_digest: str | None = None,
+               reply: dict | None = None) -> dict:
+        LOCAL.update_declaration(declaration_id, status=status, http_status=http_status,
+                                 core_digest=core_digest)
+        return {"declaration_id": declaration_id, "status": status,
+                "digest_confirmed": core_digest == record["payload_digest"],
+                "core_response": reply}
+
+    try:
+        declaration = RedactionAgent.restore_declaration(
+            record["payload"], recorded_digest=record["payload_digest"],
+        )
+    except RedactionError as exc:
+        log.error("connector.declaration_refused id=%s reason=%s", declaration_id, exc)
+        return finish("REFUSED")
+
+    cfg = settings()
+    try:
+        async with _core_client(cfg) as client:
+            r = await client.post(f"{cfg.core_url}/v1/declarations",
+                                  json=declaration.model_dump(mode="json"))
+    except httpx.HTTPError as exc:
+        log.warning("connector.core_unreachable declaration=%s err=%s", declaration_id,
+                    type(exc).__name__)
+        return finish("QUEUED")
+    if r.status_code >= 500:
+        return finish("QUEUED", r.status_code)
+    if r.status_code >= 400:
+        log.error("connector.declaration_rejected id=%s status=%d", declaration_id, r.status_code)
+        return finish("REJECTED", r.status_code)
+    body = r.json()
+    return finish("ACCEPTED", r.status_code, body.get("payload_digest"), body)
 
 
 async def _build(iid: str) -> tuple[IncidentSubmission, str]:

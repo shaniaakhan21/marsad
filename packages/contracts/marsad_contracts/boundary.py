@@ -207,6 +207,78 @@ class ResponseActionStatus(StrictModel):
 
 
 # --------------------------------------------------------------------------
+# Provider declarations — what a firm rests on, without saying who that is
+#
+# Provider names and domains never cross. A firm sends a keyed token of the provider's
+# domain and how replaceable it is; the provider, once enrolled, sends a token of its own
+# domain when it is hit. The two tokens match, and nothing about either is readable.
+# --------------------------------------------------------------------------
+
+
+class SubstitutabilityBand(str, Enum):
+    YES = "YES"
+    PARTIAL = "PARTIAL"
+    NO = "NO"
+
+
+class DeclaredDependency(StrictModel):
+    provider_token: Token
+    substitutability: SubstitutabilityBand
+
+
+class DependencyDeclaration(StrictModel):
+    """
+    A firm's complete list of providers. Each declaration replaces the last.
+
+    `sequence` rises with every declaration, so a queued older one that arrives late
+    after a core outage cannot overwrite a newer list.
+    """
+
+    kind: Literal["DEPENDENCY"] = "DEPENDENCY"
+    schema_version: Literal["1.0"] = "1.0"
+    declaration_id: str = Field(min_length=8, max_length=64)
+    institution_ref: str = Field(min_length=6, max_length=64)
+    sequence: int = Field(ge=1)
+    dependencies: list[DeclaredDependency] = Field(default_factory=list, max_length=256)
+
+
+class ProviderIncidentDeclaration(StrictModel):
+    """An enrolled provider saying it has been hit. Banded and hour-bucketed, as ever."""
+
+    kind: Literal["PROVIDER_INCIDENT"] = "PROVIDER_INCIDENT"
+    schema_version: Literal["1.0"] = "1.0"
+    declaration_id: str = Field(min_length=8, max_length=64)
+    institution_ref: str = Field(min_length=6, max_length=64)
+    provider_token: Token
+    severity_band: SeverityBand
+    ts_bucket: datetime
+
+    @field_validator("ts_bucket")
+    @classmethod
+    def _hour_bucket(cls, v: datetime) -> datetime:
+        return v.replace(minute=0, second=0, microsecond=0)
+
+
+Declaration = Annotated[
+    DependencyDeclaration | ProviderIncidentDeclaration, Field(discriminator="kind"),
+]
+
+
+class ProviderAlert(BaseModel):
+    """
+    Returned to a firm that declared this provider. The firm reads the name from its own
+    list; the core has nothing to say about who the provider is, or who else relies on it.
+    """
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    alert_id: str
+    provider_token: Token
+    severity_band: SeverityBand
+    ts_bucket: datetime
+
+
+# --------------------------------------------------------------------------
 # Key-custodian exchange — a separate crossing, to separate parties
 #
 # Sent by a connector to the holders of token-key shares, never to the core. A blinded
@@ -262,9 +334,27 @@ class CorrelationNotice(BaseModel):
 
 
 __all__ = [
-    "IndicatorType", "Sector", "SizeBand", "SeverityBand", "DisclosureRung",
-    "TelemetrySignal", "ActionStatus", "KeyedToken", "CoarseMetadata",
-    "ObligationReceiptRef", "IncidentSubmission", "TelemetrySample",
-    "ResponseActionStatus", "CorrelationKind", "CorrelationNotice",
-    "OprfEvaluationRequest", "OprfEvaluationResponse",
+    "ActionStatus",
+    "CoarseMetadata",
+    "CorrelationKind",
+    "CorrelationNotice",
+    "Declaration",
+    "DeclaredDependency",
+    "DependencyDeclaration",
+    "DisclosureRung",
+    "IncidentSubmission",
+    "IndicatorType",
+    "KeyedToken",
+    "ObligationReceiptRef",
+    "OprfEvaluationRequest",
+    "OprfEvaluationResponse",
+    "ProviderAlert",
+    "ProviderIncidentDeclaration",
+    "ResponseActionStatus",
+    "Sector",
+    "SeverityBand",
+    "SizeBand",
+    "SubstitutabilityBand",
+    "TelemetrySample",
+    "TelemetrySignal",
 ]

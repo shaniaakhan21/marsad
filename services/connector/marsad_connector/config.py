@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     #: document. 0 turns the schedule off; only tests should want that.
     retention_purge_interval_seconds: int = 3600
 
+    #: This connector's own internet domain, set only when the institution is an
+    #: enrolled third-party provider. Empty means it cannot declare a provider incident.
+    provider_domain: str = ""
+
     #: Seconds between checks for notices from the core. 0 turns the check off. A firm
     #: that reported before its peers learns of a match no sooner than this.
     notice_poll_interval_seconds: int = 60
