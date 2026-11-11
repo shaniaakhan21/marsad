@@ -175,11 +175,11 @@ Locally, on this machine. **None of it was run on public infrastructure.**
 | Connector refuses to downgrade when its certificate is missing | same | passed |
 | Certificate subject carries a pseudonym, not a firm name | same | passed |
 | Model budget degrades instead of failing | `pytest tests/test_extraction.py` | **35 passed** |
-| Compose files parse, and refuse to start without secrets | `docker compose -f deploy/docker-compose.main.yml config` | valid; aborts without `TOKEN_KEY` |
+| Compose files parse, and refuse to start without secrets | `docker compose -f deploy/docker-compose.main.yml config` | valid; aborts without `OPRF_EPOCH` |
 | Seeder produces history and correlations | `python3 deploy/seed_history.py` | **8/8 submitted, 2 correlations** |
-| Network boundary, inside real containers | `pytest tests/test_network_boundary.py -m docker` | **18 passed, 1 skipped** |
+| Network boundary, inside real containers | `pytest tests/test_network_boundary.py -m docker` | **27 passed, 1 skipped** |
 | Canary, incl. sweep of the live seeded core database | `pytest tests/test_canary.py` + direct SQL sweep | **passed; zero plaintext in 2430 chars of live rows** |
-| Full suite | `pytest tests/` | **623 passed, 29 deselected** |
+| Full suite | `pytest tests/` | **812 passed, 45 deselected** |
 
 The canary sweep of the seeded database is the one worth repeating by hand:
 

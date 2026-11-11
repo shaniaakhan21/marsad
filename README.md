@@ -18,9 +18,11 @@ a provider pointed at a hosted vendor is refused at construction, not at request
 ![MARSAD guided demo — two firms, two languages, one attacker, and nothing sensitive crossing](docs/demo.gif)
 -->
 
-<sub>Ninety seconds, end to end: an English filing, an Arabic one on rotated
+<sub>Two minutes, end to end, in nine steps: an English filing, an Arabic one on rotated
 infrastructure, a correlation that fires on tradecraft, the k-anonymity gate holding,
-exposure priced in AED, and an injection quarantined. Reproduce it with
+exposure priced in AED, an injection quarantined, the first firm warned afterwards, a
+supplier warning every dependent firm, and a receipt verified on the ledger. Start
+from empty with `make demo-fresh`. Reproduce it with
 `make record` — see [docs/recording.md](docs/recording.md).</sub>
 
 ---
@@ -41,7 +43,7 @@ without it.
 
 | What | Result | The caveat, attached |
 |---|---|---|
-| **Tests** | **807** backend, **21** Playwright e2e, **28** network-boundary (in real containers), **7** real-ledger (three QBFT validators), **8** live-model | 27 known lint findings, tracked as a ratchet |
+| **Tests** | **812** backend, **26** Playwright e2e, **28** network-boundary (in real containers), **7** real-ledger (three QBFT validators), **8** live-model | 26 known lint findings, tracked as a ratchet (ruff pinned) |
 | **Canary** | Zero planted strings reach the core — swept across every table, column and row of the live database, every API response, the OpenAPI document and every log line | The sweep is proven able to catch a leak planted in a real row; it is **not** proof against a leak nobody thought to plant |
 | **Network boundary** | A connector cannot reach the core by name or by raw IP; the core cannot reach an institution's plaintext store; two institutions cannot reach each other | Enforced by Docker networking. **Single-host caveat**: these containers share a laptop, so a container can still reach `host.docker.internal`. Recorded, not hidden |
 | **Rules vs model** — English | Deterministic **98.6%** (138/140) · model **56.4%** (79/140) | **Self-authored fixtures.** The rules were tuned against them; the model never saw them. So the comparison favours the model on paper and it still loses by 42 points |
@@ -197,8 +199,8 @@ path, and `test_the_sweep_reflects_tables_rather_than_trusting_the_orm` creates 
 outside the ORM and requires the sweep to find that too.
 
 ```bash
-make test                   # 807 backend
-make test-e2e               # 21 Playwright, against the real UI
+make test                   # 812 backend
+make test-e2e               # 26 Playwright, against the real UI
 make test-llm               # 8, needs a live Ollama
 make test-network           # 2, hits a real UAE government portal
 ```

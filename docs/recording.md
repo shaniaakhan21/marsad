@@ -1,6 +1,12 @@
 # Recording the demo
 
-A ninety-second capture of the guided demo, reproducible in one take.
+A two-minute capture of the guided demo, reproducible in one take.
+
+> **Updated 11 November 2026.** The demo now has nine steps. The shot list below was
+> measured on the original six; steps 7 (the first firm warned), 8 (a supplier warns
+> every dependent firm) and 9 (the receipt verified on the ledger) follow at the same
+> pace and are not yet timed. Start from empty with `make demo-fresh`: on a stack that
+> has been running for days, a demo run also matches every earlier test incident.
 
 ## One command
 

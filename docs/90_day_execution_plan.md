@@ -9,6 +9,16 @@ Securities and Commodities Authority (now the **UAE Capital Market Authority**) 
 
 ---
 
+## Status, 12 November 2026 (Demo Day)
+
+Built ahead of the plan, on test data: Postgres persistence and audit (day 30), the OPRF
+replacing HMAC (day 40), threshold custody as a 2-of-3 software split (day 48, hardware
+modules still to come), the concentration register from declared dependencies (day 60),
+and the regulator console (day 84). Each milestone that depends on real institutions,
+signed agreements, an independent cryptography review or a legal opinion is still open.
+
+---
+
 ## The judgement this plan rests on
 
 MARSAD's binding constraint is **not engineering**. It is whether an institution's legal counsel

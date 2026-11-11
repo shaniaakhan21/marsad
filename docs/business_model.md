@@ -95,8 +95,8 @@ independently useful.
 |---|---|---|---|
 | **1 · Comply** | One filing satisfies every authority; receipts prove timeliness against several clocks | **None** | **Built** — A4 live, 5 authorities |
 | **2 · Protect** | Prompt-injection defence over attacker-authored content in incident reports | **None** | **Built** — A14 live |
-| **3 · See** | Third-party concentration ranked in AED of daily traded value | Dependency declarations only — no incident data | **Built** — scoring live |
-| **4 · Correlate** | Learn within minutes that an attacker is hitting peers, at zero disclosure | Keyed tokens only | Built on prototype cryptography; needs the OPRF |
+| **3 · See** | Third-party concentration ranked in AED of daily traded value | Supplier declarations as tokens only — no incident data, no supplier names | **Built** — declarations and scoring live; a supplier can warn every dependent firm |
+| **4 · Correlate** | Learn within minutes that an attacker is hitting peers, at zero disclosure | Keyed tokens only | **Built** — 2-of-3 split-key OPRF; independent review pending |
 | **5 · Coordinate** | Act together at disclosure rung 2.5 without revealing the incident | Action status only | Designed, not built |
 
 A customer can stop at phase 1 and the purchase still made sense. That is the whole
