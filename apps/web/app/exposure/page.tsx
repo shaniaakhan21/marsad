@@ -14,6 +14,14 @@ import { Band, Cell, FreshnessChip, Meter, Offline, Panel, Stat } from "@/compon
  * the "out of how many firms" figure is the real licensed population, not
  * just the handful of firms in this demo.
  */
+/**
+ * The live-portal check: three figures fetched from government websites on every load,
+ * to show live ingestion works. Off for the demo, because none of the three feeds a score
+ * or an AED figure, and a page about market risk should open on the numbers that do.
+ * The fallback behaviour it displayed is still tested in tests/test_fetchers.py.
+ */
+const SHOW_LIVE_PORTAL_CHECK = false;
+
 export default function ExposurePage() {
   const [rep, setRep] = useState<ConcentrationReport | null>(null);
   const [cohorts, setCohorts] = useState<CohortReport | null>(null);
@@ -73,6 +81,7 @@ export default function ExposurePage() {
 
       <div className="space-y-4 p-8">
         {/* ---------------- live UAE government data ---------------- */}
+        {SHOW_LIVE_PORTAL_CHECK && (
         <Panel
           label="Live UAE government data"
           note="checked right now, not typed in by hand"
@@ -112,6 +121,7 @@ export default function ExposurePage() {
             that too. We never make a number up.
           </p>
         </Panel>
+        )}
 
         {/* ---------------- headline basis ---------------- */}
         <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">

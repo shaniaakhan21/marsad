@@ -3,9 +3,10 @@ import { test, expect } from "@playwright/test";
 /**
  * Systemic exposure tab — loads automatically on navigation, no button.
  *
- * The three "Live UAE government data" tiles are pinned to CACHED by the
- * cache fixtures seeded in e2e/support/seed-cache.mjs (core is started with
- * an unreachable proxy, so nothing here ever calls a live government portal).
+ * The "Live UAE government data" tiles are switched off on this page (see
+ * SHOW_LIVE_PORTAL_CHECK in app/exposure/page.tsx), so the page opens on the
+ * pinned market figures. Core still runs behind an unreachable proxy, so
+ * nothing here ever calls a live government portal.
  * The riskiest-vendor and publishing-rule numbers below follow deterministically
  * from services/core/marsad_core/services/concentration.py and
  * services/core/marsad_core/data/uae_open_data.py given the seeded dependency
@@ -24,20 +25,15 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/exposure");
 });
 
-test("the three gov-data tiles render with a CACHED label, never blank or error", async ({ page }) => {
+test("the page opens on the market figures that drive the AED numbers, each with its source", async ({ page }) => {
+  // The live-portal tiles (Ajman, TDRA) are switched off: none of them feeds a score.
+  // Their fallback-to-cache behaviour is still asserted in tests/test_fetchers.py.
   const main = page.locator("main");
-  await expect(main.getByText("Live UAE government data")).toBeVisible({ timeout: 15_000 });
-
+  await expect(main.getByText("4,084")).toBeVisible({ timeout: 15_000 });
   for (const label of GOV_DATA_TILES) {
-    // Walk up to the tile's own card div rather than matching "any div
-    // containing this text" — the grid wrapper around all three tiles
-    // contains every label too, and is nested *outside* each tile.
-    const tile = main
-      .getByText(label, { exact: true })
-      .locator('xpath=ancestor::div[contains(@class,"rounded-[10px]")][1]');
-    await expect(tile.getByText(/^[\d,]+$/)).toBeVisible(); // a real number, not "…"
-    await expect(tile.getByText(/^CACHED/)).toBeVisible();
+    await expect(main.getByText(label, { exact: true })).toHaveCount(0);
   }
+  await expect(main.getByText(/^PINNED/).first()).toBeVisible();
 });
 
 test("the riskiest vendor card shows an AED figure and 'no replacement exists'", async ({ page }) => {
